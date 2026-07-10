@@ -1,0 +1,9 @@
+{
+  "pkg": "meridian-ui",
+  "globalName": "Meridian",
+  "projectId": "764e8bed-3641-4750-bf95-a4249101389d",
+  "shape": "package",
+  "buildCmd": "npm run build",
+  "cssEntry": "dist/styles.css",
+  "readmeHeader": ".design-sync/conventions.md"
+}
