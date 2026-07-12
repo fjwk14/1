@@ -390,3 +390,53 @@ export function formatRate(rate: number | null): string {
   if (rate == null) return "-";
   return `${Math.round(rate * 100)}%`;
 }
+
+// ---------- ランキング(全試合の記録から主要アクションを集計) ----------
+
+export interface RankingEntry {
+  user_id: string;
+  count: number;
+}
+
+export interface Rankings {
+  goals: RankingEntry[];
+  assists: RankingEntry[];
+  /** 退水誘発(E誘発+P誘発) */
+  drawnExclusions: RankingEntry[];
+  cuts: RankingEntry[];
+  gkBlocks: RankingEntry[];
+}
+
+export function buildRankings(events: StatsEvent[]): Rankings {
+  const counters: Record<keyof Rankings, Map<string, number>> = {
+    goals: new Map(),
+    assists: new Map(),
+    drawnExclusions: new Map(),
+    cuts: new Map(),
+    gkBlocks: new Map(),
+  };
+  const bump = (key: keyof Rankings, userId: string) =>
+    counters[key].set(userId, (counters[key].get(userId) ?? 0) + 1);
+
+  for (const e of events) {
+    if (!e.player_id) continue;
+    if (e.type === "shot" && e.result === "goal") bump("goals", e.player_id);
+    if (e.type === "assist") bump("assists", e.player_id);
+    if (e.type === "drawn_exclusion") bump("drawnExclusions", e.player_id);
+    if (e.type === "cut") bump("cuts", e.player_id);
+    if (e.type === "gk_faced" && e.result === "block") bump("gkBlocks", e.player_id);
+  }
+
+  const toSorted = (m: Map<string, number>): RankingEntry[] =>
+    [...m.entries()]
+      .map(([user_id, count]) => ({ user_id, count }))
+      .sort((a, b) => b.count - a.count);
+
+  return {
+    goals: toSorted(counters.goals),
+    assists: toSorted(counters.assists),
+    drawnExclusions: toSorted(counters.drawnExclusions),
+    cuts: toSorted(counters.cuts),
+    gkBlocks: toSorted(counters.gkBlocks),
+  };
+}

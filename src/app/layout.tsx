@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KG Tactical Video",
-  description: "試合動画をチームの戦術知に変換する水球チーム向けアプリ",
+  title: "関学水球アプリ",
+  description:
+    "試合中の記録シートをスマホでリアルタイム入力。スコア・記録シートの自動集計、動画クリップ共有、AI分析までひとつにした水球部のチームアプリ。",
 };
 
 export const viewport: Viewport = {

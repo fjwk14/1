@@ -12,9 +12,9 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-brand-900">KG Tactical Video</h1>
+        <h1 className="text-2xl font-bold text-brand-900">関学水球アプリ</h1>
         <p className="mt-1 text-sm text-slate-500">
-          試合動画をチームの戦術知に変換する
+          試合記録・記録シート・動画クリップ・AI分析をひとつに
         </p>
       </div>
 

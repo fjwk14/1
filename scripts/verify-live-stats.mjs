@@ -278,6 +278,23 @@ try {
     if (!gkText.includes("50%")) throw new Error(`GK阻止率が50%でない: ${gkText}`);
   });
 
+  await step("ランキング: 得点/アシスト/GKブロックが自動集計される", async () => {
+    await page.goto(`${BASE}/rankings`);
+    await page.waitForSelector("text=得点ランキング");
+    const body = (await page.textContent("body")).replace(/\s+/g, "");
+    // 管理者2得点 / 選手ビー1アシスト / キーパーシー1ブロック
+    if (!body.includes("🥇スタッツ管理者2点")) {
+      throw new Error("得点ランキング1位(管理者2点)が出ない");
+    }
+    if (!body.includes("🥇選手ビー1回")) {
+      throw new Error("アシストランキング(選手ビー1回)が出ない");
+    }
+    if (!body.includes("キーパーシー1回")) {
+      throw new Error("GKブロック(キーパーシー1回)が出ない");
+    }
+    await page.screenshot({ path: `${SHOT}/05-rankings.png`, fullPage: true });
+  });
+
   await step("選手ロールは閲覧のみ(入力画面に入れない)", async () => {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const p = await c.newPage();

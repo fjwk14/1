@@ -153,7 +153,7 @@ export default async function MatchDetailPage({
             const url = safeHttpUrl(v.url);
             return (
               <li key={v.id} className="flex items-center gap-2">
-                <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold">
+                <span className="w-16 shrink-0 truncate rounded bg-slate-100 px-1 py-0.5 text-center text-xs font-semibold">
                   {matchVideoLabel(v)}
                 </span>
                 {url ? (
