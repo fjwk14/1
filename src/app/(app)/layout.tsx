@@ -13,6 +13,7 @@ export default async function AppLayout({
   const navItems = [
     { href: "/dashboard", label: "ホーム", icon: "🏠" },
     { href: "/matches", label: "試合", icon: "🎬" },
+    { href: "/rankings", label: "ランキング", icon: "🏆" },
     ...(can.manageTeam(membership.role)
       ? [{ href: "/admin", label: "管理", icon: "⚙️" }]
       : []),

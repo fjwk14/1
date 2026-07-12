@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildGkLines,
   buildPlayerLines,
+  buildRankings,
   buildTeamSummary,
   describeEvent,
   formatRate,
@@ -170,5 +171,44 @@ describe("describeEvent / formatRate", () => {
   it("formatRateはnullを-にする", () => {
     expect(formatRate(null)).toBe("-");
     expect(formatRate(0.5)).toBe("50%");
+  });
+});
+
+describe("buildRankings (主要アクションのランキング)", () => {
+  it("得点・アシスト・退水誘発・カット・GKブロックを人数分集計し降順で返す", () => {
+    const events: StatsEvent[] = [
+      // p1: 2得点(うち1本はミスなので数えない)
+      ev({ type: "shot", player_id: "p1", subtype: "center", result: "goal" }),
+      ev({ type: "shot", player_id: "p1", subtype: "drive", result: "goal" }),
+      ev({ type: "shot", player_id: "p1", subtype: "six_m", result: "miss" }),
+      // p2: 1得点・2アシスト
+      ev({ type: "shot", player_id: "p2", subtype: "center", result: "goal" }),
+      ev({ type: "assist", player_id: "p2" }),
+      ev({ type: "assist", player_id: "p2" }),
+      // 退水誘発はE・P合算
+      ev({ type: "drawn_exclusion", player_id: "p1", subtype: "exclusion" }),
+      ev({ type: "drawn_exclusion", player_id: "p1", subtype: "penalty" }),
+      // カットとGK
+      ev({ type: "cut", player_id: "p2" }),
+      ev({ type: "gk_faced", player_id: "gk1", result: "block" }),
+      ev({ type: "gk_faced", player_id: "gk1", result: "goal_against" }),
+      // チームイベントは対象外
+      ev({ type: "opponent_goal", player_id: null }),
+    ];
+    const r = buildRankings(events);
+    expect(r.goals).toEqual([
+      { user_id: "p1", count: 2 },
+      { user_id: "p2", count: 1 },
+    ]);
+    expect(r.assists).toEqual([{ user_id: "p2", count: 2 }]);
+    expect(r.drawnExclusions).toEqual([{ user_id: "p1", count: 2 }]);
+    expect(r.cuts).toEqual([{ user_id: "p2", count: 1 }]);
+    expect(r.gkBlocks).toEqual([{ user_id: "gk1", count: 1 }]);
+  });
+
+  it("記録がなければ全カテゴリ空配列", () => {
+    const r = buildRankings([]);
+    expect(r.goals).toEqual([]);
+    expect(r.gkBlocks).toEqual([]);
   });
 });
