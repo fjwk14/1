@@ -218,8 +218,17 @@ function pgErrorResponse(res, e) {
 // INSERT/UPDATEボディの値をpgパラメータへ変換。
 // 配列・オブジェクトはJSONB列向けにJSON文字列化する(node-pgの
 // デフォルトはPostgres配列リテラル化のためjsonb列で構文エラーになる)
-function toPgParam(value) {
+// jsonb列(key_problem_patterns等)に入るJS配列はJSON.stringifyでよいが、
+// 本物のpostgres配列型の列はpgドライバに配列のまま渡す必要がある
+// (JSON.stringifyすると "[]" のようなJSON文字列になり、配列リテラルとして
+// パースできず "malformed array literal" になる)。列名で判定する。
+const PG_NATIVE_ARRAY_COLUMNS = new Set(["mention_user_ids"]);
+
+function toPgParam(value, column) {
   if (value === undefined) return null;
+  if (Array.isArray(value)) {
+    return PG_NATIVE_ARRAY_COLUMNS.has(column) ? value : JSON.stringify(value);
+  }
   if (value !== null && typeof value === "object") return JSON.stringify(value);
   return value;
 }
@@ -373,7 +382,7 @@ const server = createServer(async (req, res) => {
           const params = [];
           const tuples = items.map((item) => {
             const ph = cols.map((c) => {
-              params.push(toPgParam(item[c]));
+              params.push(toPgParam(item[c], c));
               return `$${params.length}`;
             });
             return `(${ph.join(", ")})`;
@@ -421,7 +430,7 @@ const server = createServer(async (req, res) => {
           const setParams = [...values];
           const setSql = cols
             .map((c) => {
-              setParams.push(toPgParam(body[c]));
+              setParams.push(toPgParam(body[c], c));
               return `"${c}" = $${setParams.length}`;
             })
             .join(", ");

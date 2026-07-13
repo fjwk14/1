@@ -116,6 +116,8 @@ export interface ClipComment {
   user_id: string;
   comment: string;
   comment_type: CommentType;
+  parent_comment_id: string | null;
+  mention_user_ids: string[];
   created_at: string;
 }
 

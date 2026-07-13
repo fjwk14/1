@@ -34,9 +34,10 @@ try {
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');
     await page.waitForURL("**/onboarding");
+    await page.click("summary:has-text('新しくチームを作る')");
     await page.fill("#name", "クリップ編集部");
     await page.fill("#slug", `ce${uniq}`);
-    await page.click('button[type="submit"]');
+    await page.click('button:has-text("チームを作成")');
     await page.waitForURL("**/dashboard");
     await page.goto(`${BASE}/matches/new`);
     await page.fill("#title", "編集検証試合");
@@ -54,7 +55,7 @@ try {
   });
 
   await step("コメント入力欄が画面内に収まる(右はみ出しなし)", async () => {
-    const input = page.locator('input[name="comment"]');
+    const input = page.locator('#new-topic input[name="comment"]');
     await input.waitFor();
     const box = await input.boundingBox();
     const vw = page.viewportSize().width;
@@ -66,8 +67,8 @@ try {
   });
 
   await step("コメント投稿できる(全幅入力)", async () => {
-    await page.fill('input[name="comment"]', "レイアウト確認コメント");
-    await page.click('button:has-text("コメントする")');
+    await page.fill('#new-topic input[name="comment"]', "レイアウト確認コメント");
+    await page.click('#new-topic button:has-text("コメントする")');
     await page.waitForSelector("text=レイアウト確認コメント");
   });
 

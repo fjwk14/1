@@ -120,6 +120,9 @@ export async function removeTag(formData: FormData) {
   backTo(clipId);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function addComment(formData: FormData) {
   const { team, userId } = await requireMembership();
   const clipId = String(formData.get("clip_id"));
@@ -130,12 +133,20 @@ export async function addComment(formData: FormData) {
   });
   if (!parsed.success) backTo(clipId, parsed.error.issues[0].message);
 
+  // 返信先(話題)と宛先メンション(どちらも任意)
+  const rawParent = String(formData.get("parent_comment_id") ?? "").trim();
+  const parentId = UUID_RE.test(rawParent) ? rawParent : null;
+  const rawMention = String(formData.get("mention") ?? "").trim();
+  const mentionIds = UUID_RE.test(rawMention) ? [rawMention] : [];
+
   const supabase = await createClient();
   const { error } = await supabase.from("clip_comments").insert({
     ...parsed.data,
     clip_id: clipId,
     team_id: team.id,
     user_id: userId,
+    parent_comment_id: parentId,
+    mention_user_ids: mentionIds,
   });
   if (error) backTo(clipId, `コメント投稿に失敗しました: ${error.message}`);
   revalidatePath(`/clips/${clipId}`);

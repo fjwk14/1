@@ -45,23 +45,33 @@ export default async function ClipDetailPage({
   if (!clipData) notFound();
   const clip = clipData as VideoClip;
 
-  const [{ data: matchData }, { data: tagsData }, { data: commentsData }, { data: templatesData }] =
-    await Promise.all([
-      supabase.from("matches").select("*").eq("id", clip.match_id).single(),
-      supabase.from("clip_tags").select("*").eq("clip_id", id).order("created_at"),
-      supabase
-        .from("clip_comments")
-        .select("*, users(name)")
-        .eq("clip_id", id)
-        .order("created_at"),
-      supabase
-        .from("tag_templates")
-        .select("*")
-        .eq("team_id", team.id)
-        .eq("is_active", true)
-        .order("tag_type")
-        .order("sort_order"),
-    ]);
+  const [
+    { data: matchData },
+    { data: tagsData },
+    { data: commentsData },
+    { data: templatesData },
+    { data: membersData },
+  ] = await Promise.all([
+    supabase.from("matches").select("*").eq("id", clip.match_id).single(),
+    supabase.from("clip_tags").select("*").eq("clip_id", id).order("created_at"),
+    supabase
+      .from("clip_comments")
+      .select("*, users(name)")
+      .eq("clip_id", id)
+      .order("created_at"),
+    supabase
+      .from("tag_templates")
+      .select("*")
+      .eq("team_id", team.id)
+      .eq("is_active", true)
+      .order("tag_type")
+      .order("sort_order"),
+    supabase
+      .from("memberships")
+      .select("user_id, users(name)")
+      .eq("team_id", team.id)
+      .eq("status", "active"),
+  ]);
 
   const match = matchData as Match;
 
@@ -88,6 +98,21 @@ export default async function ClipDetailPage({
   const available = templates.filter(
     (t) => !attached.has(`${t.tag_type}:${t.tag_value}`)
   );
+
+  // メンバー(宛先メンションの選択肢 + メンションIDの名前解決)
+  const members = ((membersData ?? []) as unknown as {
+    user_id: string;
+    users: { name: string } | null;
+  }[]).map((m) => ({ user_id: m.user_id, name: m.users?.name ?? "不明" }));
+  const nameOf = new Map(members.map((m) => [m.user_id, m.name]));
+
+  // 話題(親コメント)ごとにスレッドへ分ける
+  const threads = comments
+    .filter((c) => !c.parent_comment_id)
+    .map((root) => ({
+      root,
+      replies: comments.filter((c) => c.parent_comment_id === root.id),
+    }));
 
   return (
     <>
@@ -187,46 +212,89 @@ export default async function ClipDetailPage({
 
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-600">
-          コメント({comments.length})
+          コメント・議論({comments.length})
         </h2>
-        <div className="space-y-2">
-          {comments.map((c) => (
-            <div key={c.id} className="rounded-lg bg-slate-50 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">
-                  {(c.users as { name: string } | null)?.name ?? "不明"}
-                  <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px]">
-                    {COMMENT_TYPE_LABELS[c.comment_type] ?? c.comment_type}
-                  </span>
-                </span>
-                {c.user_id === userId && (
-                  <form action={deleteComment}>
-                    <input type="hidden" name="clip_id" value={clip.id} />
-                    <input type="hidden" name="comment_id" value={c.id} />
-                    <button className="text-xs text-slate-400 hover:text-red-600">
-                      削除
-                    </button>
-                  </form>
-                )}
-              </div>
-              <p className="mt-1 text-sm">{c.comment}</p>
-            </div>
-          ))}
-        </div>
 
-        <form action={addComment} className="space-y-2">
+        {threads.length === 0 && (
+          <p className="text-sm text-slate-400">
+            まだコメントがありません。下のフォームから最初の話題を投稿しましょう。
+          </p>
+        )}
+
+        {/* 話題ごとのスレッド */}
+        {threads.map(({ root, replies }) => (
+          <div
+            key={root.id}
+            className="overflow-hidden rounded-xl border border-slate-200"
+          >
+            <CommentBlock
+              c={root}
+              clipId={clip.id}
+              userId={userId}
+              nameOf={nameOf}
+            />
+            {replies.length > 0 && (
+              <div className="space-y-2 border-t border-slate-100 bg-slate-50/70 py-2 pl-5 pr-3">
+                {replies.map((r) => (
+                  <CommentBlock
+                    key={r.id}
+                    c={r}
+                    clipId={clip.id}
+                    userId={userId}
+                    nameOf={nameOf}
+                    isReply
+                  />
+                ))}
+              </div>
+            )}
+            <details className="border-t border-slate-100 bg-white px-3 py-2">
+              <summary className="cursor-pointer text-xs font-semibold text-brand-600">
+                ↩ この話題に返信する
+              </summary>
+              <form action={addComment} className="mt-2 space-y-2">
+                <input type="hidden" name="clip_id" value={clip.id} />
+                <input type="hidden" name="parent_comment_id" value={root.id} />
+                <input type="hidden" name="comment_type" value="observation" />
+                <Input
+                  name="comment"
+                  required
+                  maxLength={1000}
+                  placeholder="返信を書く"
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Select name="mention" defaultValue="" className="min-w-0 flex-1 text-sm">
+                    <option value="">宛先なし</option>
+                    {members.map((m) => (
+                      <option key={m.user_id} value={m.user_id}>
+                        → {m.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button type="submit" variant="secondary" className="shrink-0">
+                    返信
+                  </Button>
+                </div>
+              </form>
+            </details>
+          </div>
+        ))}
+
+        {/* 新しい話題 */}
+        <form id="new-topic" action={addComment} className="space-y-2 border-t border-slate-100 pt-3">
+          <p className="text-xs font-semibold text-slate-500">新しい話題を投稿</p>
           <input type="hidden" name="clip_id" value={clip.id} />
           <Input
             name="comment"
             required
             maxLength={1000}
-            placeholder="短くコメントを残す"
+            placeholder="この場面について話したいこと"
             className="text-sm"
           />
           <div className="flex gap-2">
             <Select
               name="comment_type"
-              className="flex-1 text-sm"
+              className="min-w-0 flex-1 text-sm"
               defaultValue="observation"
             >
               {Object.entries(COMMENT_TYPE_LABELS).map(([value, label]) => (
@@ -235,12 +303,69 @@ export default async function ClipDetailPage({
                 </option>
               ))}
             </Select>
-            <Button type="submit" className="shrink-0">
-              コメントする
-            </Button>
+            <Select name="mention" defaultValue="" className="min-w-0 flex-1 text-sm">
+              <option value="">宛先なし</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  → {m.name}
+                </option>
+              ))}
+            </Select>
           </div>
+          <Button type="submit" className="w-full">
+            コメントする
+          </Button>
         </form>
+        <p className="text-[10px] text-slate-400">
+          ※ 話題の先頭コメントを削除すると、その返信もまとめて削除されます。
+        </p>
       </Card>
     </>
+  );
+}
+
+// コメント1件の表示(話題の起点・返信の両方で使う)
+function CommentBlock({
+  c,
+  clipId,
+  userId,
+  nameOf,
+  isReply = false,
+}: {
+  c: ClipComment & { users: { name: string } | null };
+  clipId: string;
+  userId: string;
+  nameOf: Map<string, string>;
+  isReply?: boolean;
+}) {
+  return (
+    <div className={isReply ? "rounded-lg bg-white p-2.5" : "p-3"}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs font-medium text-slate-500">
+          {c.users?.name ?? "不明"}
+          <span className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px]">
+            {COMMENT_TYPE_LABELS[c.comment_type] ?? c.comment_type}
+          </span>
+          {c.mention_user_ids?.map((uid) => (
+            <span
+              key={uid}
+              className="ml-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700"
+            >
+              → {nameOf.get(uid) ?? "不明"}
+            </span>
+          ))}
+        </span>
+        {c.user_id === userId && (
+          <form action={deleteComment}>
+            <input type="hidden" name="clip_id" value={clipId} />
+            <input type="hidden" name="comment_id" value={c.id} />
+            <button className="shrink-0 text-xs text-slate-400 hover:text-red-600">
+              削除
+            </button>
+          </form>
+        )}
+      </div>
+      <p className="mt-1 text-sm">{c.comment}</p>
+    </div>
   );
 }
