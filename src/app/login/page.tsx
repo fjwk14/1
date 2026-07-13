@@ -50,8 +50,25 @@ export default async function LoginPage({
         <form action={isSignUp ? signUp : signIn} className="space-y-4">
           {isSignUp && (
             <div>
-              <Label htmlFor="name">名前</Label>
-              <Input id="name" name="name" required placeholder="表示名" />
+              <Label>名前(漢字フルネーム)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="family_name"
+                  name="family_name"
+                  required
+                  placeholder="姓(例: 浅田)"
+                  className="min-w-0 flex-1"
+                  aria-label="姓"
+                />
+                <Input
+                  id="given_name"
+                  name="given_name"
+                  required
+                  placeholder="名(例: 峻平)"
+                  className="min-w-0 flex-1"
+                  aria-label="名"
+                />
+              </div>
             </div>
           )}
           {isSignUp && (

@@ -4,6 +4,8 @@ import {
   clipFormSchema,
   commentSchema,
   matchSchema,
+  composeName,
+  nameSchema,
   parseQuarterScores,
   tagSchema,
   aiReportSchema,
@@ -259,5 +261,18 @@ describe("parseQuarterScores (Q別スコア入力)", () => {
     const over = parseQuarterScores((k) => (k === "q5_against" ? "100" : ""));
     expect(over.ok).toBe(false);
     if (!over.ok) expect(over.message).toContain("PSO");
+  });
+});
+
+describe("nameSchema / composeName (漢字フルネーム)", () => {
+  it("姓・名が揃えば有効、片方でも空なら失敗", () => {
+    expect(nameSchema.safeParse({ family_name: "浅田", given_name: "峻平" }).success).toBe(true);
+    expect(nameSchema.safeParse({ family_name: "浅田", given_name: "" }).success).toBe(false);
+    expect(nameSchema.safeParse({ family_name: "", given_name: "峻平" }).success).toBe(false);
+  });
+
+  it("composeNameは姓 名を半角スペースで結合する", () => {
+    expect(composeName("浅田", "峻平")).toBe("浅田 峻平");
+    expect(composeName("  浅田 ", " 峻平 ")).toBe("浅田 峻平");
   });
 });

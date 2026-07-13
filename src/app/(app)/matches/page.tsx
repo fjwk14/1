@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/permissions";
 import type { Match } from "@/lib/types";
 
-export default async function MatchesPage() {
+export default async function MatchesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
+  const { deleted } = await searchParams;
   const { team, membership } = await requireMembership();
   const supabase = await createClient();
 
@@ -42,6 +47,12 @@ export default async function MatchesPage() {
           </LinkButton>
         )}
       </div>
+
+      {deleted && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          ✓ 試合を削除しました
+        </div>
+      )}
 
       {matches.length === 0 && (
         <Card className="text-sm text-slate-500">まだ試合がありません</Card>

@@ -65,6 +65,15 @@ export async function updateMember(formData: FormData) {
   const status = z.enum(STATUSES).safeParse(formData.get("status"));
   if (!role.success || !status.success) backTo("/admin", "不正な入力です");
 
+  // 役職の併用は管理者(primary=admin)のみ。それ以外はnullに矯正する
+  const rawSecondary = String(formData.get("secondary_role") ?? "");
+  const secondaryParsed = z.enum(ROLES).safeParse(rawSecondary);
+  let secondaryRole: string | null =
+    secondaryParsed.success && secondaryParsed.data !== role.data
+      ? secondaryParsed.data
+      : null;
+  if (role.data !== "admin") secondaryRole = null;
+
   const supabase = await createClient();
 
   // 最後のadminを降格・非アクティブ化するとチーム管理が不可能になるため防ぐ
@@ -85,7 +94,7 @@ export async function updateMember(formData: FormData) {
 
   const { data, error } = await supabase
     .from("memberships")
-    .update({ role: role.data, status: status.data })
+    .update({ role: role.data, status: status.data, secondary_role: secondaryRole })
     .eq("id", membershipId)
     .select("id");
   if (error || !data?.length) {

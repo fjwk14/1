@@ -40,7 +40,8 @@ async function signupOnly(name, email) {
   const p = await c.newPage();
   p.setDefaultTimeout(20000);
   await p.goto(`${BASE}/login?mode=signup`);
-  await p.fill("#name", name);
+  await p.fill("#family_name", name);
+  await p.fill("#given_name", "太郎");
   await p.fill("#email", email);
   await p.fill("#password", "password123");
   await p.click('button[type="submit"]');
@@ -72,7 +73,8 @@ try {
     await signupOnly("選手ビー", playerEmail);
     await signupOnly("キーパーシー", gkEmail);
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "スタッツ管理者");
+    await page.fill("#family_name", "スタッツ管理者");
+    await page.fill("#given_name", "太郎");
     await page.fill("#email", adminEmail);
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');
@@ -284,13 +286,14 @@ try {
     await page.waitForSelector("text=得点ランキング");
     const body = (await page.textContent("body")).replace(/\s+/g, "");
     // 管理者2得点 / 選手ビー1アシスト / キーパーシー1ブロック
-    if (!body.includes("🥇スタッツ管理者2点")) {
+    // (氏名は姓名フルネームなので姓部分+件数の並びで確認)
+    if (!body.includes("🥇スタッツ管理者太郎2点")) {
       throw new Error("得点ランキング1位(管理者2点)が出ない");
     }
-    if (!body.includes("🥇選手ビー1回")) {
+    if (!body.includes("🥇選手ビー太郎1回")) {
       throw new Error("アシストランキング(選手ビー1回)が出ない");
     }
-    if (!body.includes("キーパーシー1回")) {
+    if (!body.includes("キーパーシー太郎1回")) {
       throw new Error("GKブロック(キーパーシー1回)が出ない");
     }
     await page.screenshot({ path: `${SHOT}/05-rankings.png`, fullPage: true });

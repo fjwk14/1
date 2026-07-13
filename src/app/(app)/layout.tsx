@@ -26,12 +26,15 @@ export default async function AppLayout({
           {team.name}
         </Link>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500">
+          <Link href="/profile" className="text-slate-500 hover:text-brand-600">
             {profile.name}
             <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs">
               {ROLE_LABELS[membership.role]}
+              {membership.secondary_role
+                ? `/${ROLE_LABELS[membership.secondary_role]}`
+                : ""}
             </span>
-          </span>
+          </Link>
           <form action={signOut}>
             <button className="text-xs text-slate-400 underline">
               ログアウト

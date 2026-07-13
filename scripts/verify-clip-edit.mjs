@@ -28,7 +28,8 @@ async function noOverflow(where) {
 try {
   await step("準備: サインアップ→チーム→試合→クリップ作成", async () => {
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "編集検証");
+    await page.fill("#family_name", "編集検証");
+    await page.fill("#given_name", "太郎");
     await page.fill("#email", email);
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');

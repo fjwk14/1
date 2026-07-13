@@ -107,3 +107,10 @@ describe("権限マトリクスの整合性", () => {
     expect(editors).toEqual(["executive", "captain", "admin"]);
   });
 });
+
+describe("試合削除の権限", () => {
+  it("削除できるのは管理者・マネージャーのみ", () => {
+    const deleters = ALL_ROLES.filter((r) => can.deleteMatch(r));
+    expect(deleters.sort()).toEqual(["admin", "manager"]);
+  });
+});

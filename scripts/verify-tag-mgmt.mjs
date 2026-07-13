@@ -27,7 +27,8 @@ async function step(name, fn) {
 try {
   await step("サインアップ→チーム作成→タグ管理を開く", async () => {
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "タグ管理者");
+    await page.fill("#family_name", "タグ管理者");
+    await page.fill("#given_name", "太郎");
     await page.fill("#email", email);
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');

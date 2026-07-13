@@ -20,6 +20,8 @@ export const can = {
 
   createMatch: (role: Role) => STAFF_ROLES.includes(role),
   editMatch: (role: Role) => STAFF_ROLES.includes(role),
+  // 試合削除は取り返しがつかないため管理者・マネージャーのみ
+  deleteMatch: (role: Role) => role === "admin" || role === "manager",
   createClip: (role: Role) => STAFF_ROLES.includes(role),
   tagClip: (role: Role) => STAFF_ROLES.includes(role),
   generateReport: (role: Role) => STAFF_ROLES.includes(role),

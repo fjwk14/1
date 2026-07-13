@@ -28,7 +28,8 @@ async function step(name, fn) {
 try {
   await step("サインアップ→チーム作成", async () => {
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "検証管理者");
+    await page.fill("#family_name", "検証管理者");
+    await page.fill("#given_name", "太郎");
     await page.fill("#email", email);
     await page.fill("#password", pass);
     await page.click('button[type="submit"]');

@@ -163,6 +163,45 @@ export async function deleteMatchVideo(formData: FormData) {
   redirect(back);
 }
 
+// 試合削除(取り返しがつかないため2段階確認)。
+// 1段階目: 削除確認ページへ遷移 / 2段階目: 試合名を正確に入力して実行。
+// 権限は管理者・マネージャーのみ(RLSでも同じ制限)。
+export async function deleteMatch(formData: FormData) {
+  const { membership } = await requireMembership();
+  const matchId = String(formData.get("match_id"));
+  const back = `/matches/${matchId}/delete`;
+
+  if (!can.deleteMatch(membership.role)) {
+    redirect(`/matches/${matchId}?error=${encodeURIComponent("削除の権限がありません(管理者・マネージャーのみ)")}`);
+  }
+
+  const supabase = await createClient();
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, title")
+    .eq("id", matchId)
+    .maybeSingle();
+  if (!match) redirect("/matches");
+
+  // 2段階目の確認: 入力された試合名が完全一致しないと削除しない
+  const confirmTitle = String(formData.get("confirm_title") ?? "").trim();
+  if (confirmTitle !== (match as { title: string }).title) {
+    redirect(`${back}?error=${encodeURIComponent("試合名が一致しません。表示どおりに入力してください。")}`);
+  }
+
+  // 関連(クリップ・タグ・コメント・スタッツ・動画・レポート)はFKのon delete cascadeで消える
+  const { data, error } = await supabase
+    .from("matches")
+    .delete()
+    .eq("id", matchId)
+    .select("id");
+  if (error || !data?.length) {
+    redirect(`${back}?error=${encodeURIComponent("削除できませんでした(権限がない可能性があります)")}`);
+  }
+  revalidatePath("/matches");
+  redirect("/matches?deleted=1");
+}
+
 // クリップ作成 + タグ付け + 最初のコメントを1回のsubmitで完了させる(90秒UX)
 export async function createClip(formData: FormData) {
   const { team, userId } = await requireMembership();

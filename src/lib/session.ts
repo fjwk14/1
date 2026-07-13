@@ -23,7 +23,7 @@ export const requireMembership = cache(async (): Promise<SessionContext> => {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("id, email, name, avatar_url")
+    .select("id, email, name, family_name, given_name, avatar_url")
     .eq("id", user.id)
     .single();
 
@@ -31,7 +31,7 @@ export const requireMembership = cache(async (): Promise<SessionContext> => {
   // (MVPはシングルチーム前提。チーム切替UIは将来対応)
   const { data: membership } = await supabase
     .from("memberships")
-    .select("id, team_id, user_id, role, status")
+    .select("id, team_id, user_id, role, secondary_role, status")
     .eq("user_id", user.id)
     .eq("status", "active")
     .order("created_at", { ascending: true })
