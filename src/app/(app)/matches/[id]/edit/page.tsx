@@ -171,6 +171,21 @@ export default async function EditMatchPage({
       <p className="text-xs text-slate-400">
         ※ 動画は試合詳細の「試合動画」欄で追加・削除できます。
       </p>
+
+      {can.deleteMatch(membership.role) && (
+        <Card className="space-y-2 border-red-200">
+          <h2 className="text-sm font-semibold text-red-700">試合の削除</h2>
+          <p className="text-xs text-slate-500">
+            試合とそれに紐づく記録をすべて削除します。確認のうえ次の画面で試合名を入力すると実行できます。
+          </p>
+          <Link
+            href={`/matches/${id}/delete`}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50"
+          >
+            試合を削除する
+          </Link>
+        </Card>
+      )}
     </>
   );
 }

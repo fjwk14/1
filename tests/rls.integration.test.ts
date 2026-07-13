@@ -445,6 +445,88 @@ describe.skipIf(!DATABASE_URL)("RLS統合テスト(実PostgreSQL)", () => {
     });
   });
 
+  describe("役職の併用・試合削除・視聴ログ", () => {
+    const MANAGER = "66666666-6666-6666-6666-666666666666";
+
+    it("管理者には併用役職を設定できる", async () => {
+      await asUser(ADMIN, async (q) => {
+        const res = await q(
+          `update memberships set secondary_role = 'captain'
+           where team_id = $1 and user_id = $2 returning secondary_role`,
+          [TEAM_A, ADMIN]
+        );
+        expect(res.rows[0]?.secondary_role).toBe("captain");
+      });
+    });
+
+    it("管理者以外への併用役職はCHECK制約で拒否される", async () => {
+      // 直接更新(スーパーユーザー)でも制約に反する組み合わせは弾かれる
+      await expect(
+        db.query(
+          `update memberships set secondary_role = 'manager'
+           where team_id = $1 and user_id = $2`,
+          [TEAM_A, PLAYER]
+        )
+      ).rejects.toThrow(/memberships_secondary_role_admin_only/);
+    });
+
+    it("試合削除: マネージャーは削除でき、選手はできない", async () => {
+      await asUser(PLAYER, async (q) => {
+        const res = await q("delete from matches where id = $1 returning id", [
+          MATCH_A,
+        ]);
+        expect(res.rowCount).toBe(0); // RLSで対象0件
+      });
+      await asUser(MANAGER, async (q) => {
+        const res = await q("delete from matches where id = $1 returning id", [
+          MATCH_A,
+        ]);
+        expect(res.rowCount).toBe(1);
+      });
+    });
+
+    it("視聴ログ: 本人は記録でき、他人になりすました記録は拒否される", async () => {
+      await asUser(PLAYER, async (q) => {
+        const res = await q(
+          `insert into clip_views (clip_id, user_id) values ($1, $2) returning team_id`,
+          [CLIP_A, PLAYER]
+        );
+        expect(res.rows[0]?.team_id).toBe(TEAM_A); // トリガーでteam_id補完
+      });
+      await asUser(PLAYER, async (q) => {
+        await expect(
+          q(`insert into clip_views (clip_id, user_id) values ($1, $2)`, [
+            CLIP_A,
+            STAFF,
+          ])
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("視聴ログ: スタッフは全員分、選手は自分の分だけ見える", async () => {
+      // PLAYERとSTAFFの閲覧を1件ずつ用意
+      await db.query(
+        `insert into clip_views (team_id, clip_id, user_id) values
+         ($1, $2, $3), ($1, $2, $4)`,
+        [TEAM_A, CLIP_A, PLAYER, STAFF]
+      );
+      await asUser(STAFF, async (q) => {
+        const res = await q("select user_id from clip_views where team_id = $1", [
+          TEAM_A,
+        ]);
+        const ids = res.rows.map((r) => r.user_id);
+        expect(ids).toContain(PLAYER);
+        expect(ids).toContain(STAFF);
+      });
+      await asUser(PLAYER, async (q) => {
+        const res = await q("select user_id from clip_views where team_id = $1", [
+          TEAM_A,
+        ]);
+        expect(res.rows.every((r) => r.user_id === PLAYER)).toBe(true);
+      });
+    });
+  });
+
   describe("招待コード(join_team_by_code)", () => {
     // チームBに参加していない新規ユーザー
     const NEWBIE = "77777777-7777-7777-7777-777777777777";

@@ -185,6 +185,16 @@ export const commentSchema = z.object({
   comment_type: z.enum(COMMENT_TYPES),
 });
 
+// 氏名(漢字フルネーム)。姓・名を別々に入力し、"姓 名" に組み立てる
+export const nameSchema = z.object({
+  family_name: z.string().trim().min(1, "姓を入力してください").max(20),
+  given_name: z.string().trim().min(1, "名を入力してください").max(20),
+});
+
+export function composeName(family: string, given: string): string {
+  return `${family.trim()} ${given.trim()}`.trim();
+}
+
 export const teamSchema = z.object({
   name: z.string().trim().min(1, "チーム名は必須です").max(80),
   slug: z

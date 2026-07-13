@@ -44,7 +44,8 @@ async function shot(name) {
 try {
   await step("サインアップ → オンボーディングへ", async () => {
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "E2Eスタッフ");
+    await page.fill("#family_name", "E2Eスタッフ");
+    await page.fill("#given_name", "選手");
     await page.fill("#email", staffEmail);
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');
@@ -253,12 +254,47 @@ try {
     await shot("09-admin");
   });
 
+  await step("管理者は役職を併用できる(管理者 兼 主将)", async () => {
+    await page.goto(`${BASE}/admin`);
+    // 先頭カード = 最初に参加した管理者本人
+    const adminForm = page
+      .locator('form:has(select[name="secondary_role"])')
+      .first();
+    await adminForm
+      .locator('select[name="secondary_role"]')
+      .selectOption("captain");
+    await adminForm.locator('button:has-text("更新")').click();
+    // 更新後の再描画でヘッダーのロール表示が 管理者/主将 になるのを待つ
+    await page.waitForSelector("header:has-text('主将')");
+  });
+
   await step("管理画面: タグテンプレート追加", async () => {
     await page.goto(`${BASE}/admin/tags`);
     await page.selectOption("#new_tag_type", "tactic");
     await page.fill("#new_tag_value", "ハイプレス");
     await page.click('form:has(#new_tag_value) button:has-text("追加")');
     await page.waitForSelector('input[value="ハイプレス"]');
+  });
+
+  await step("プロフィール: 氏名(姓名)をいつでも変更できる", async () => {
+    await page.goto(`${BASE}/profile`);
+    await page.fill('input[name="family_name"]', "改姓");
+    await page.fill('input[name="given_name"]', "改名");
+    await page.click('button:has-text("名前を保存する")');
+    await page.waitForSelector("text=名前を更新しました");
+    if (!(await page.textContent("body")).includes("改姓 改名")) {
+      throw new Error("変更後の氏名が表示されない");
+    }
+  });
+
+  await step("視聴状況: スタッフがメンバーの閲覧状況を見られる", async () => {
+    await page.goto(`${BASE}/engagement`);
+    await page.waitForSelector("text=メンバーの視聴状況");
+    const body = await page.textContent("body");
+    // クリップを開いた本人(改姓 改名)が一覧に出る
+    if (!body.includes("改姓") && !body.includes("アクセス回数")) {
+      throw new Error("視聴状況の一覧が表示されない");
+    }
   });
 
   await step("ログアウト → 未認証リダイレクト", async () => {

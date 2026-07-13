@@ -37,7 +37,8 @@ let matchUrl = "";
 try {
   await step("準備: サインアップ→チーム作成", async () => {
     await page.goto(`${BASE}/login?mode=signup`);
-    await page.fill("#name", "当日フロー管理者");
+    await page.fill("#family_name", "当日フロー管理者");
+    await page.fill("#given_name", "太郎");
     await page.fill("#email", email);
     await page.fill("#password", "password123");
     await page.click('button[type="submit"]');
@@ -145,6 +146,23 @@ try {
   await step("試合一覧に動画本数が表示される", async () => {
     await page.goto(`${BASE}/matches`);
     await page.waitForSelector("text=🎥 動画1本");
+  });
+
+  await step("試合削除: 2段階(試合名入力)で削除できる", async () => {
+    await page.goto(`${matchUrl}/edit`);
+    await page.click('a:has-text("試合を削除する")');
+    await page.waitForURL(/\/delete$/);
+    // 名前が違うと削除されない
+    await page.fill('input[name="confirm_title"]', "ちがう名前");
+    await page.click('button:has-text("完全に削除する")');
+    await page.waitForSelector("text=一致しません");
+    // 正しい試合名で削除実行
+    await page.fill('input[name="confirm_title"]', "当日フロー検証試合");
+    await page.click('button:has-text("完全に削除する")');
+    await page.waitForURL(/\/matches\?deleted=1$/);
+    await page.waitForSelector("text=試合を削除しました");
+    // 一覧から消えている(この試合はチーム唯一なので空状態になる)
+    await page.waitForSelector("text=まだ試合がありません");
   });
 
   console.log(`\n=== 試合当日フロー検証: ${ok}/${total} passed ===`);

@@ -38,6 +38,7 @@ export interface Membership {
   team_id: string;
   user_id: string;
   role: Role;
+  secondary_role: Role | null;
   status: MembershipStatus;
 }
 
@@ -45,6 +46,8 @@ export interface Profile {
   id: string;
   email: string;
   name: string;
+  family_name: string | null;
+  given_name: string | null;
   avatar_url: string | null;
 }
 

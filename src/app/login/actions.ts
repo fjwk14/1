@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { composeName, nameSchema } from "@/lib/validation";
 import { z } from "zod";
 
 const credentialsSchema = z.object({
@@ -47,8 +48,13 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) failSignup("名前を入力してください");
+  const nameParsed = nameSchema.safeParse({
+    family_name: formData.get("family_name"),
+    given_name: formData.get("given_name"),
+  });
+  if (!nameParsed.success) failSignup(nameParsed.error.issues[0].message);
+  const { family_name, given_name } = nameParsed.data;
+  const name = composeName(family_name, given_name);
   const inviteCode = String(formData.get("invite_code") ?? "").trim();
 
   const parsed = credentialsSchema.safeParse({
@@ -61,7 +67,7 @@ export async function signUp(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: { data: { name } },
+    options: { data: { name, family_name, given_name } },
   });
   if (error) {
     const message = friendlySignupError(error.message);

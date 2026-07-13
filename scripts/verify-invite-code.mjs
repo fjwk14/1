@@ -45,7 +45,8 @@ try {
 
   await step("管理者: サインアップ→チーム作成", async () => {
     await admin.goto(`${BASE}/login?mode=signup`);
-    await admin.fill("#name", "招待管理者");
+    await admin.fill("#family_name", "招待管理者");
+    await admin.fill("#given_name", "太郎");
     await admin.fill("#email", adminEmail);
     await admin.fill("#password", "password123");
     await admin.click('button[type="submit"]');
@@ -76,7 +77,8 @@ try {
   await step("部員A: サインアップ時にコード入力→自動参加", async () => {
     const p = await newPage();
     await p.goto(`${BASE}/login?mode=signup`);
-    await p.fill("#name", "部員エー");
+    await p.fill("#family_name", "部員エー");
+    await p.fill("#given_name", "太郎");
     await p.fill("#email", memberAEmail);
     await p.fill("#password", "password123");
     await p.fill("#invite_code", inviteCode.toLowerCase()); // 小文字でも通る
@@ -93,7 +95,8 @@ try {
     const p = await newPage();
     await p.goto(`${BASE}/login?mode=signup`);
     await p.waitForLoadState("networkidle");
-    await p.fill("#name", "重複ユーザー");
+    await p.fill("#family_name", "重複ユーザー");
+    await p.fill("#given_name", "太郎");
     await p.fill("#email", memberAEmail); // 既に登録済み
     await p.fill("#password", "password123");
     await p.click('button:has-text("アカウント作成")');
@@ -113,7 +116,8 @@ try {
   await step("部員B: コードなし登録→オンボーディングで参加", async () => {
     const p = await newPage();
     await p.goto(`${BASE}/login?mode=signup`);
-    await p.fill("#name", "部員ビー");
+    await p.fill("#family_name", "部員ビー");
+    await p.fill("#given_name", "太郎");
     await p.fill("#email", memberBEmail);
     await p.fill("#password", "password123");
     await p.click('button[type="submit"]');
@@ -158,7 +162,8 @@ try {
     // 古いコードで参加しようとすると失敗する
     const p = await newPage();
     await p.goto(`${BASE}/login?mode=signup`);
-    await p.fill("#name", "部員シー");
+    await p.fill("#family_name", "部員シー");
+    await p.fill("#given_name", "太郎");
     await p.fill("#email", `inv_c_${uniq}@example.com`);
     await p.fill("#password", "password123");
     await p.fill("#invite_code", inviteCode); // 旧コード

@@ -23,6 +23,7 @@ import type {
   VideoClip,
 } from "@/lib/types";
 import { addComment, addTag, deleteComment, removeTag } from "../actions";
+import ViewTracker from "./view-tracker";
 
 export default async function ClipDetailPage({
   params,
@@ -90,6 +91,7 @@ export default async function ClipDetailPage({
 
   return (
     <>
+      <ViewTracker clipId={clip.id} />
       <ErrorBanner message={error} />
 
       <Card className="space-y-2">
@@ -123,6 +125,7 @@ export default async function ClipDetailPage({
             href={buildTimestampUrl(videoUrl, clip.start_time_seconds)}
             target="_blank"
             rel="noreferrer"
+            data-open-video
             className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
           >
             ▶ 該当場面を動画で開く({formatSeconds(clip.start_time_seconds)}〜)

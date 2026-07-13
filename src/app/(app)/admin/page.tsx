@@ -40,14 +40,20 @@ export default async function AdminPage({
   const members = (membersData ?? []) as (Membership & {
     users: Pick<Profile, "id" | "name" | "email"> | null;
   })[];
+  const ROLE_OPTIONS = Object.entries(ROLE_LABELS) as [Role, string][];
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-bold">チーム管理</h1>
-        <Link href="/admin/tags" className="text-sm text-brand-600 underline">
-          タグテンプレート管理 →
-        </Link>
+        <div className="flex flex-col items-end gap-0.5">
+          <Link href="/admin/tags" className="text-sm text-brand-600 underline">
+            タグテンプレート管理 →
+          </Link>
+          <Link href="/engagement" className="text-sm text-brand-600 underline">
+            メンバーの視聴状況 →
+          </Link>
+        </div>
       </div>
       <ErrorBanner message={error} />
 
@@ -114,6 +120,26 @@ export default async function AdminPage({
                       {label}
                     </option>
                   ))}
+                </Select>
+              </div>
+              {/* 役職の併用は管理者のみ(例: 管理者 兼 主将)。primary=admin のときだけ有効 */}
+              <div>
+                <label className="text-xs text-slate-400">
+                  併用役職(管理者のみ・任意)
+                </label>
+                <Select
+                  name="secondary_role"
+                  defaultValue={m.secondary_role ?? ""}
+                  className="w-full text-sm"
+                >
+                  <option value="">なし</option>
+                  {ROLE_OPTIONS.filter(([value]) => value !== "admin").map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    )
+                  )}
                 </Select>
               </div>
               <Button type="submit" variant="secondary" className="w-full">
