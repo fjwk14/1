@@ -135,9 +135,33 @@ try {
     // リダイレクト後の再描画で追加タグが表示されるまで待つ
     await page.waitForSelector("text=被カウンター");
     await page.selectOption('select[name="comment_type"]', "question");
-    await page.fill('input[name="comment"]', "この場面の守備位置を確認したい");
-    await page.click('button:has-text("コメントする")');
+    await page.fill('#new-topic input[name="comment"]', "この場面の守備位置を確認したい");
+    await page.click('#new-topic button:has-text("コメントする")');
     await page.waitForSelector("text=この場面の守備位置を確認したい");
+  });
+
+  await step("コメントスレッド: 返信+宛先メンション", async () => {
+    const badgeBefore = await page.locator("span.bg-brand-50").count();
+    // 話題(親コメント)ごとのスレッドdivを本文で特定し、その中のdetailsを開く
+    const thread = page.locator("div.overflow-hidden.rounded-xl", {
+      hasText: "この場面の守備位置を確認したい",
+    });
+    await thread.locator("summary:has-text('この話題に返信する')").click();
+    const replyForm = thread.locator("form");
+    await replyForm
+      .locator('input[name="comment"]')
+      .fill("了解しました、次の練習で確認します");
+    await replyForm
+      .locator('select[name="mention"]')
+      .selectOption({ label: "→ E2Eスタッフ 選手" });
+    await replyForm.locator('button:has-text("返信")').click();
+    await page.waitForSelector("text=了解しました、次の練習で確認します");
+    const badges = page.locator("span.bg-brand-50", {
+      hasText: "E2Eスタッフ",
+    });
+    if ((await badges.count()) <= badgeBefore) {
+      throw new Error("返信の宛先バッジが表示されない");
+    }
   });
 
   await step("2つ目のクリップ(得点场面)を登録", async () => {
@@ -234,8 +258,8 @@ try {
     // クリップにコメントできる
     await p.click("text=Q2 カウンター失点");
     await p.waitForURL(/\/clips\/[0-9a-f-]+$/);
-    await p.fill('input[name="comment"]', "選手からの質問です");
-    await p.click('button:has-text("コメントする")');
+    await p.fill('#new-topic input[name="comment"]', "選手からの質問です");
+    await p.click('#new-topic button:has-text("コメントする")');
     await p.waitForSelector("text=選手からの質問です");
     // タグ追加UIは見えない
     if ((await p.textContent("body")).includes("タグを選択して追加")) {

@@ -56,6 +56,8 @@ describe("buildReportPrompt", () => {
           user_id: "u1",
           comment: "切り替えを速く",
           comment_type: "tactical_opinion",
+          parent_comment_id: null,
+          mention_user_ids: [],
           created_at: new Date().toISOString(),
           author_name: "主将テスト",
         },
