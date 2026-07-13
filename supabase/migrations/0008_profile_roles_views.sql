@@ -7,12 +7,13 @@
 --
 -- 既存デプロイへの適用: このファイルを Supabase SQL Editor に
 -- 丸ごと貼り付けて Run するだけ。
+-- ※ 何度実行しても安全(idempotent)に書いてあります。
 -- 新規デプロイ: 0001 → 0004 → 0005 → 0006 → 0007 → 0008 の順。
 -- =============================================================
 
 -- ---------- 1. 姓名(漢字フルネーム) ----------
-alter table public.users add column family_name text;
-alter table public.users add column given_name text;
+alter table public.users add column if not exists family_name text;
+alter table public.users add column if not exists given_name text;
 -- 本人が自分のプロフィールを更新できるよう列単位のUPDATE権限を付与
 grant update (name, avatar_url, family_name, given_name)
   on table public.users to authenticated;
@@ -38,8 +39,10 @@ end;
 $$;
 
 -- ---------- 2. 役職の併用(管理者のみ) ----------
-alter table public.memberships add column secondary_role public.membership_role;
+alter table public.memberships add column if not exists secondary_role public.membership_role;
 -- 管理者(primary=admin)以外は併用不可
+alter table public.memberships
+  drop constraint if exists memberships_secondary_role_admin_only;
 alter table public.memberships
   add constraint memberships_secondary_role_admin_only
   check (secondary_role is null or role = 'admin');
@@ -65,7 +68,7 @@ create policy matches_delete on public.matches for delete
   using (public.has_team_role(team_id, array['manager','admin']::public.membership_role[]));
 
 -- ---------- 4. クリップ視聴ログ ----------
-create table public.clip_views (
+create table if not exists public.clip_views (
   id uuid primary key default gen_random_uuid(),
   team_id uuid not null references public.teams (id) on delete cascade,
   clip_id uuid not null references public.video_clips (id) on delete cascade,
@@ -76,23 +79,27 @@ create table public.clip_views (
   opened_video boolean not null default false,
   created_at timestamptz not null default now()
 );
-create index idx_clip_views_team_user on public.clip_views (team_id, user_id);
-create index idx_clip_views_clip on public.clip_views (clip_id);
+create index if not exists idx_clip_views_team_user on public.clip_views (team_id, user_id);
+create index if not exists idx_clip_views_clip on public.clip_views (clip_id);
 
 -- team_id は親クリップから強制(0001の関数を再利用)
+drop trigger if exists trg_clip_view_team on public.clip_views;
 create trigger trg_clip_view_team before insert or update of clip_id on public.clip_views
   for each row execute function public.enforce_clip_child_team();
 
 alter table public.clip_views enable row level security;
 
 -- 閲覧集計はスタッフが全員分を、各メンバーは自分の分を見られる
+drop policy if exists clip_views_select on public.clip_views;
 create policy clip_views_select on public.clip_views for select
   using (
     user_id = auth.uid()
     or public.has_team_role(team_id, array['manager','tactical_staff','executive','captain','admin']::public.membership_role[])
   );
 -- 記録は本人分のみ
+drop policy if exists clip_views_insert on public.clip_views;
 create policy clip_views_insert on public.clip_views for insert
   with check (public.is_team_member(team_id) and user_id = auth.uid());
+drop policy if exists clip_views_update on public.clip_views;
 create policy clip_views_update on public.clip_views for update
   using (user_id = auth.uid());
