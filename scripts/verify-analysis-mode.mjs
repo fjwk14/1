@@ -113,7 +113,7 @@ try {
     }
   });
 
-  await step("分析モード: 3項目のみ記録できる(シュート・試合終了UIなし)", async () => {
+  await step("分析モード: 分析専用項目のみ記録できる(シュート・試合終了UIなし)", async () => {
     const body = await analyst.textContent("body");
     if (body.includes("時間使い切り")) throw new Error("時間使い切りボタンが見えている");
     if (body.includes("試合終了")) throw new Error("試合終了ボタンが見えている");
@@ -124,7 +124,7 @@ try {
     await analyst.click('button:has-text("併用選手")');
     await analyst.waitForSelector("text=縦パス");
     const panel = await analyst.textContent("body");
-    if (panel.includes("センター") || panel.includes("ドライブ")) {
+    if (panel.includes("センター") || panel.includes("6m")) {
       throw new Error("分析モードにシュート種別が見えている");
     }
     await analyst.click('button:has-text("縦パス")');
@@ -143,6 +143,31 @@ try {
       { timeout: 15000 }
     );
     await analyst.screenshot({ path: `${SHOT}/01-analysis-mode.png`, fullPage: true });
+  });
+
+  await step("分析モード: 追加3項目(マーク外し・リバウンド奪取・ドライブ突破)も記録できる", async () => {
+    await analyst.click('button:has-text("併用選手")');
+    await analyst.waitForSelector("text=マーク外し");
+    await analyst.click('button:has-text("マーク外し")');
+    await analyst.waitForTimeout(350);
+    await analyst.click('button:has-text("併用選手")');
+    await analyst.waitForTimeout(350);
+    await analyst.click('button:has-text("リバウンド奪取")');
+    await analyst.waitForTimeout(350);
+    await analyst.click('button:has-text("分析管理者")');
+    await analyst.waitForTimeout(350);
+    await analyst.click('button:has-text("ドライブ突破")');
+    await analyst.waitForTimeout(350);
+    await analyst.waitForFunction(
+      () => document.querySelector('[data-testid="sync-indicator"]')?.textContent?.includes("同期済み"),
+      { timeout: 15000 }
+    );
+    await analyst.click("text=イベントログ");
+    const body = (await analyst.textContent("body"));
+    if (!body.includes("マーク外し")) throw new Error("マーク外しがログにない");
+    if (!body.includes("リバウンド奪取")) throw new Error("リバウンド奪取がログにない");
+    if (!body.includes("ドライブ突破")) throw new Error("ドライブ突破がログにない");
+    await analyst.click('button:has-text("✕ 閉じる")');
   });
 
   await step("記録がダッシュボードKPI(速攻参加・対人守備成功)に反映される", async () => {
@@ -186,6 +211,16 @@ try {
     const badge = await p3.textContent('[data-testid="mode-badge"]');
     if (!badge.includes("分析")) throw new Error(`分析モードでない: ${badge}`);
     await c3.close();
+  });
+
+  await step("プレー総合スコアに新3項目の生値が反映される(併用選手)", async () => {
+    await page.goto(`${BASE}/physical`);
+    // 総合フィジカルスコアランキングは全在籍メンバーが出る(測定有無不問)
+    await page.click('a:has-text("併用選手")');
+    await page.waitForSelector("text=プレー総合スコア");
+    const body = (await page.textContent("body")).replace(/\s+/g, "");
+    if (!body.includes("創出力")) throw new Error("創出力軸が表示されていない");
+    if (!body.includes("ボール奪取")) throw new Error("ボール奪取軸が表示されていない");
   });
 
   console.log(`\n=== 分析モード・併用役職検証: ${ok}/${total} passed ===`);

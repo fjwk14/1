@@ -80,7 +80,8 @@ const SHEET_ACTIONS: {
   { label: "他ミス", type: "miss", subtype: "other" },
 ];
 
-// 分析モード: 選手のプレー総合スコア(レーダー軸)に反映される項目
+// 分析モード: 選手のプレー総合スコア(レーダー軸)に反映される項目。
+// 6軸のうち手薄だった創出力・ボール奪取・決定力にも実データを供給する(0018)。
 const ANALYSIS_ACTIONS: {
   label: string;
   description: string;
@@ -89,6 +90,9 @@ const ANALYSIS_ACTIONS: {
   { label: "縦パス", description: "攻撃の起点になるパス(展開力)", type: "key_pass" },
   { label: "速攻参加", description: "カウンターに泳ぎ参加(展開力)", type: "counter_join" },
   { label: "対人守備", description: "1対1で相手を止めた(対人守備)", type: "defense_stop" },
+  { label: "マーク外し", description: "得点機会を作るオフボールの動き(創出力)", type: "off_ball_move" },
+  { label: "リバウンド奪取", description: "こぼれ球の回収(ボール奪取)", type: "rebound_win" },
+  { label: "ドライブ突破", description: "守備を割ってゴール前まで運ぶ(決定力)", type: "drive_break" },
 ];
 
 export default function LiveScreen({
@@ -659,14 +663,14 @@ export default function LiveScreen({
 
           {mode === "analysis" ? (
             // 分析モード: レーダー軸に反映される項目のみ(2タップ)
-            <div className="space-y-2">
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
               {ANALYSIS_ACTIONS.map((a) => (
                 <button
                   key={a.type}
                   onClick={() =>
                     record({ type: a.type, player_id: selected.user_id })
                   }
-                  className="flex w-full items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 text-left"
+                  className="flex w-full flex-col items-start rounded-lg bg-emerald-50 px-4 py-2.5 text-left"
                 >
                   <span className="font-bold text-emerald-800">{a.label}</span>
                   <span className="text-[10px] text-emerald-600">{a.description}</span>

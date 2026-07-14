@@ -16,6 +16,9 @@ interface RawPlayerStats {
   KP: number; // 縦パス(起点)
   CJ: number; // 速攻参加
   DS: number; // 対人守備成功
+  OBM: number; // マーク外し(分析チーム記録・0018)
+  RW: number; // リバウンド奪取(分析チーム記録・0018)
+  DB: number; // ドライブ突破(分析チーム記録・0018)
 }
 
 function buildRawPlayerStats(
@@ -26,7 +29,11 @@ function buildRawPlayerStats(
   const ensure = (userId: string): RawPlayerStats => {
     let s = stats.get(userId);
     if (!s) {
-      s = { user_id: userId, G: 0, SH: 0, A: 0, DE: 0, C: 0, EX: 0, OF: 0, MISS: 0, KP: 0, CJ: 0, DS: 0 };
+      s = {
+        user_id: userId,
+        G: 0, SH: 0, A: 0, DE: 0, C: 0, EX: 0, OF: 0, MISS: 0,
+        KP: 0, CJ: 0, DS: 0, OBM: 0, RW: 0, DB: 0,
+      };
       stats.set(userId, s);
     }
     return s;
@@ -70,6 +77,15 @@ function buildRawPlayerStats(
       case "defense_stop":
         s.DS += 1;
         break;
+      case "off_ball_move":
+        s.OBM += 1;
+        break;
+      case "rebound_win":
+        s.RW += 1;
+        break;
+      case "drive_break":
+        s.DB += 1;
+        break;
     }
   }
 
@@ -108,13 +124,16 @@ export const PERFORMANCE_AXIS_APPROX: Record<PerformanceAxisKey, boolean> = {
 function rawAxisValues(s: RawPlayerStats): Record<PerformanceAxisKey, number> {
   const shotRate = s.SH > 0 ? s.G / s.SH : 0;
   return {
-    decisiveness: s.G + shotRate * 5,
-    creativity: s.A + s.DE,
+    // 決定力: 得点 + シュート決定率 + ドライブ突破(決定機まで運んだ回数、得点より軽め)
+    decisiveness: s.G + shotRate * 5 + s.DB * 0.5,
+    // 創出力: アシスト + 退水誘発 + マーク外し(得点機会を作るオフボールの動き)
+    creativity: s.A + s.DE + s.OBM,
     // 展開力: 縦パス(起点)+ 速攻参加 + アシストの一部
     buildup: s.KP + s.CJ + s.A * 0.5,
     // 対人守備: 対人守備成功が主。被退水はマイナス
     defense: Math.max(0, s.DS - s.EX * 0.5),
-    steal: s.C,
+    // ボール奪取: カット(パスカット)+ リバウンド奪取(こぼれ球回収)
+    steal: s.C + s.RW,
     efficiency: shotRate * 10 - (s.MISS + s.OF),
   };
 }

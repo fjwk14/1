@@ -26,29 +26,31 @@ const roster: RosterEntry[] = [
 ];
 
 describe("buildPerformanceProfiles", () => {
-  it("決定力 = G + (シュート率)*5", () => {
+  it("決定力 = G + (シュート率)*5 + ドライブ突破*0.5", () => {
     const events = [
       ev({ type: "shot", player_id: "p1", result: "goal" }),
       ev({ type: "shot", player_id: "p1", result: "goal" }),
       ev({ type: "shot", player_id: "p1", result: "miss" }),
       ev({ type: "shot", player_id: "p1", result: "miss" }),
+      ev({ type: "drive_break", player_id: "p1" }),
     ];
     const [p1] = buildPerformanceProfiles(events, roster);
     const decisiveness = p1.axes.find((a) => a.key === "decisiveness")!;
-    // G=2, SH=4, shotRate=0.5 -> 2 + 0.5*5 = 4.5
-    expect(decisiveness.rawValue).toBeCloseTo(4.5);
+    // G=2, SH=4, shotRate=0.5, DB=1 -> 2 + 0.5*5 + 0.5 = 5
+    expect(decisiveness.rawValue).toBeCloseTo(5);
   });
 
-  it("創出力 = A + DE(退水/ペナルティ誘発、subtype問わず)", () => {
+  it("創出力 = A + DE(退水/ペナルティ誘発、subtype問わず) + マーク外し", () => {
     const events = [
       ev({ type: "assist", player_id: "p1" }),
       ev({ type: "assist", player_id: "p1" }),
       ev({ type: "drawn_exclusion", player_id: "p1", subtype: "exclusion" }),
       ev({ type: "drawn_exclusion", player_id: "p1", subtype: "penalty" }),
+      ev({ type: "off_ball_move", player_id: "p1" }),
     ];
     const [p1] = buildPerformanceProfiles(events, roster);
     const creativity = p1.axes.find((a) => a.key === "creativity")!;
-    expect(creativity.rawValue).toBeCloseTo(2 + 2); // A=2, DE=2
+    expect(creativity.rawValue).toBeCloseTo(2 + 2 + 1); // A=2, DE=2, OBM=1
   });
 
   it("全6軸が実データ算出(approx=false)になった", () => {
@@ -69,6 +71,17 @@ describe("buildPerformanceProfiles", () => {
     const buildup = p1.axes.find((a) => a.key === "buildup")!;
     // KP=2, CJ=1, A=1 -> 2 + 1 + 0.5 = 3.5
     expect(buildup.rawValue).toBeCloseTo(3.5);
+  });
+
+  it("ボール奪取 = カット + リバウンド奪取", () => {
+    const events = [
+      ev({ type: "cut", player_id: "p1" }),
+      ev({ type: "cut", player_id: "p1" }),
+      ev({ type: "rebound_win", player_id: "p1" }),
+    ];
+    const [p1] = buildPerformanceProfiles(events, roster);
+    const steal = p1.axes.find((a) => a.key === "steal")!;
+    expect(steal.rawValue).toBeCloseTo(3); // C=2, RW=1
   });
 
   it("対人守備 = 対人守備成功 - 被退水*0.5、負にはならずclamp", () => {

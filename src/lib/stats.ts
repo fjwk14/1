@@ -25,7 +25,11 @@ export type StatsEventType =
   // 展開力・対人守備の実データ化(0014で追加)
   | "key_pass" // 縦パス(攻撃の起点)
   | "counter_join" // 速攻参加
-  | "defense_stop"; // 対人守備成功
+  | "defense_stop" // 対人守備成功
+  // 分析チーム記録項目の拡充(0018で追加)
+  | "off_ball_move" // マーク外し(創出力)
+  | "rebound_win" // リバウンド奪取(ボール奪取)
+  | "drive_break"; // ドライブ突破(決定力)
 
 export type ShotSubtype =
   | "center"
@@ -112,6 +116,12 @@ export function describeEvent(
       return `${who}: 速攻参加`;
     case "defense_stop":
       return `${who}: 対人守備`;
+    case "off_ball_move":
+      return `${who}: マーク外し`;
+    case "rebound_win":
+      return `${who}: リバウンド奪取`;
+    case "drive_break":
+      return `${who}: ドライブ突破`;
     case "miss":
       return `${who}: ${MISS_SUBTYPE_LABELS[e.subtype as MissSubtype] ?? "ミス"}`;
     case "gk_faced":
