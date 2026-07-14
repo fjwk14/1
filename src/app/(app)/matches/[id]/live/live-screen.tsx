@@ -97,6 +97,8 @@ export default function LiveScreen({
   const [extraMan, setExtraMan] = useState(false);
   const [selected, setSelected] = useState<RosterEntry | null>(null);
   const [shotSubtype, setShotSubtype] = useState<ShotSubtype | null>(null);
+  // 得点直後にアシスト選手を紐付けるためのプロンプト(得点者のidを保持)
+  const [assistFor, setAssistFor] = useState<{ scorerId: string } | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [locked, setLocked] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -226,6 +228,8 @@ export default function LiveScreen({
       }
       if (event.type === "shot" && event.result === "goal") {
         setExtraMan(false);
+        // 得点者が分かっているときはアシスト紐付けプロンプトを出す
+        if (event.player_id) setAssistFor({ scorerId: event.player_id });
       }
 
       feedback(describeEvent(event, nameOf));
@@ -235,6 +239,32 @@ export default function LiveScreen({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [locked, matchId, quarter, feedback, flush]
+  );
+
+  // 得点に紐づくアシストを記録する。lockに影響されないよう直接キューへ積む
+  // (得点直後でも取りこぼさない)。playerIdがnullなら「アシストなし」で閉じる。
+  const recordAssist = useCallback(
+    (playerId: string | null) => {
+      if (playerId) {
+        const event: StatsEvent = {
+          id: crypto.randomUUID(),
+          match_id: matchId,
+          quarter,
+          player_id: playerId,
+          type: "assist",
+          subtype: null,
+          result: null,
+          is_extra_man: false,
+        };
+        setEvents((prev) => [...prev, event]);
+        setOps((prev) => [...prev, { kind: "insert", event }]);
+        feedback(describeEvent(event, nameOf));
+        setTimeout(flush, 50);
+      }
+      setAssistFor(null);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [matchId, quarter, feedback, flush]
   );
 
   const removeEvent = useCallback(
@@ -480,19 +510,14 @@ export default function LiveScreen({
         ))}
       </div>
 
-      {/* チームイベント */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* チームイベント: 攻撃の時間使い切り(シュートに至らず攻撃終了)。
+          相手の得点はGKの「失点」で記録するため、ここには置かない。 */}
+      <div>
         <button
           onClick={() => record({ type: "attack_end_no_shot" })}
-          className="min-h-11 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700"
+          className="min-h-11 w-full rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700"
         >
-          攻撃終了(シュートなし)
-        </button>
-        <button
-          onClick={() => record({ type: "opponent_goal" })}
-          className="min-h-11 rounded-lg border border-red-200 bg-red-50 text-sm font-semibold text-red-700"
-        >
-          相手得点
+          ⏱ 時間使い切り(攻撃終了)
         </button>
       </div>
 
@@ -649,8 +674,50 @@ export default function LiveScreen({
         </div>
       )}
 
-      {/* 直近イベント + Undo(選手パネル非表示時) */}
-      {!selected && (
+      {/* 得点直後のアシスト紐付けパネル */}
+      {assistFor && !selected && (
+        <div
+          data-testid="assist-panel"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-2xl rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate font-bold">
+              ⚽ {nameOf(assistFor.scorerId)} の得点 — アシストは?
+            </span>
+            <button
+              onClick={() => recordAssist(null)}
+              className="min-h-11 shrink-0 px-3 text-sm text-slate-400"
+            >
+              ✕ なし
+            </button>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {fieldPlayers
+              .filter((r) => r.user_id !== assistFor.scorerId)
+              .map((r) => (
+                <button
+                  key={r.user_id}
+                  onClick={() => recordAssist(r.user_id)}
+                  className="flex min-h-16 flex-col items-center justify-center rounded-xl border-2 border-slate-200 bg-white font-bold"
+                >
+                  <span className="text-xl">{r.cap_number}</span>
+                  <span className="max-w-full truncate px-1 text-[10px] font-normal text-slate-500">
+                    {r.name}
+                  </span>
+                </button>
+              ))}
+          </div>
+          <button
+            onClick={() => recordAssist(null)}
+            className="mt-3 min-h-11 w-full rounded-lg border border-slate-300 text-sm font-semibold text-slate-600"
+          >
+            アシストなしで閉じる
+          </button>
+        </div>
+      )}
+
+      {/* 直近イベント + Undo(選手パネル・アシストパネル非表示時) */}
+      {!selected && !assistFor && (
         <div className="fixed inset-x-0 bottom-14 z-10 mx-auto max-w-2xl border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur">
           <div className="flex items-start justify-between gap-2">
             <ul className="min-w-0 flex-1 space-y-0.5 text-xs text-slate-600">

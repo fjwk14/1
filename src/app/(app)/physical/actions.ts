@@ -68,3 +68,71 @@ export async function recordPhysicalMeasurements(formData: FormData) {
   revalidatePath(`/physical/${targetUser.data}`);
   backTo("/physical");
 }
+
+// 記録済みの測定値を1件編集する(スタッフのみ)。
+export async function updatePhysicalMeasurement(formData: FormData) {
+  const { membership } = await requireMembership();
+  if (!can.recordPhysical(membership.role)) {
+    backTo("/physical", "測定値の編集には権限が必要です(マネージャー以上)");
+  }
+
+  const id = z.string().uuid().safeParse(formData.get("measurement_id"));
+  const targetUser = z.string().uuid().safeParse(formData.get("user_id"));
+  if (!id.success || !targetUser.success) {
+    backTo("/physical", "不正な入力です");
+  }
+
+  const backPath = `/physical/${targetUser.data}`;
+  const parsed = z.coerce
+    .number()
+    .finite()
+    .safeParse(String(formData.get("value") ?? "").trim());
+  if (!parsed.success) backTo(backPath, "数値で入力してください");
+
+  const rawDate = String(formData.get("measured_on") ?? "").trim();
+  const patch: { value: number; measured_on?: string } = { value: parsed.data };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) patch.measured_on = rawDate;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("physical_measurements")
+    .update(patch)
+    .eq("id", id.data)
+    .select("id");
+  if (error || !data?.length) {
+    backTo(backPath, "更新できませんでした(権限がない可能性があります)");
+  }
+
+  revalidatePath("/physical");
+  revalidatePath(backPath);
+  backTo(`${backPath}?ok=1`);
+}
+
+// 記録済みの測定値を1件削除する(スタッフのみ)。
+export async function deletePhysicalMeasurement(formData: FormData) {
+  const { membership } = await requireMembership();
+  if (!can.recordPhysical(membership.role)) {
+    backTo("/physical", "測定値の削除には権限が必要です(マネージャー以上)");
+  }
+
+  const id = z.string().uuid().safeParse(formData.get("measurement_id"));
+  const targetUser = z.string().uuid().safeParse(formData.get("user_id"));
+  if (!id.success || !targetUser.success) {
+    backTo("/physical", "不正な入力です");
+  }
+  const backPath = `/physical/${targetUser.data}`;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("physical_measurements")
+    .delete()
+    .eq("id", id.data)
+    .select("id");
+  if (error || !data?.length) {
+    backTo(backPath, "削除できませんでした(権限がない可能性があります)");
+  }
+
+  revalidatePath("/physical");
+  revalidatePath(backPath);
+  backTo(`${backPath}?ok=1`);
+}

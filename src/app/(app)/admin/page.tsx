@@ -103,9 +103,15 @@ export default async function AdminPage({
           value={members.map((m) => m.id).join(",")}
         />
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-600">
-            メンバー({members.length}人)
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-600">
+              メンバー({members.length}人)
+            </h2>
+            {/* 上部にも更新ボタン(下までスクロールしなくても保存できる) */}
+            <Button type="submit" className="min-h-9 shrink-0 px-3 text-xs">
+              一括更新
+            </Button>
+          </div>
           {members.map((m) => (
             <div key={m.id}>
               <Card className="space-y-2">
@@ -194,7 +200,8 @@ export default async function AdminPage({
             </div>
           ))}
         </section>
-        <div className="sticky bottom-16 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+        {/* 下部の更新ボタン(下ナビと重ならないよう通常配置。上部にもボタンあり) */}
+        <div className="pt-2">
           <Button type="submit" className="w-full">
             一括更新
           </Button>

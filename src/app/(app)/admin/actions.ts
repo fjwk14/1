@@ -141,6 +141,24 @@ export async function bulkUpdateMembers(formData: FormData) {
     backTo("/admin", "最後の管理者は降格・除籍できません。先に別の管理者を任命してください。");
   }
 
+  // 帽子番号の重複をDB制約より前に検出する(入力ミスを分かりやすく弾く)
+  const caps = updates
+    .map((u) => u.capNumber)
+    .filter((n): n is number => n != null);
+  if (new Set(caps).size !== caps.length) {
+    backTo("/admin", "帽子番号が重複しています。重複しない番号にしてください。");
+  }
+
+  // 帽子番号の入れ替え(例: 7↔8)で一意制約に一時的に衝突するのを防ぐため、
+  // まず対象メンバーの帽子番号を一旦nullにしてから本更新する(2パス方式)。
+  const { error: clearError } = await supabase
+    .from("memberships")
+    .update({ cap_number: null })
+    .in("id", memberIds);
+  if (clearError) {
+    backTo("/admin", "更新の前処理に失敗しました(通信環境を確認してください)");
+  }
+
   for (const u of updates) {
     const { data, error } = await supabase
       .from("memberships")

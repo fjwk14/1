@@ -32,6 +32,8 @@ export const can = {
   recordStats: (role: Role) => role === "manager" || role === "admin",
   // フィジカル測定値の記録(RLS側も同じ制限)
   recordPhysical: (role: Role) => role === "manager" || role === "admin",
+  // 練習記録・出欠の記録(RLS側も同じ制限)
+  recordPractice: (role: Role) => role === "manager" || role === "admin",
 
   manageTeam: (role: Role) => role === "admin",
   manageMembers: (role: Role) => role === "admin",
