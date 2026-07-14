@@ -117,7 +117,7 @@ export function describeEvent(
     case "gk_faced":
       return `${who}(GK): ${GK_RESULT_LABELS[e.result as GkResult] ?? e.result}`;
     case "attack_end_no_shot":
-      return "攻撃終了(シュートなし)";
+      return "時間使い切り(攻撃終了)";
     case "opponent_goal":
       return "相手得点";
   }

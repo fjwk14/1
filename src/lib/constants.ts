@@ -32,6 +32,21 @@ export const POSITION_LABELS: Record<string, string> = {
   gk: "GK",
 };
 
+// 出欠ステータスの表示ラベルと色
+export const ATTENDANCE_LABELS: Record<string, string> = {
+  present: "出席",
+  absent: "欠席",
+  late: "遅刻",
+  excused: "見学",
+};
+
+export const ATTENDANCE_STYLES: Record<string, string> = {
+  present: "bg-emerald-100 text-emerald-700",
+  absent: "bg-rose-100 text-rose-700",
+  late: "bg-amber-100 text-amber-700",
+  excused: "bg-slate-200 text-slate-600",
+};
+
 // メンバーのポジション表示(GK優先、次に field_position)
 export function positionLabel(isGk: boolean, fieldPosition: number | null): string {
   if (isGk) return "GK";

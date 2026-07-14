@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Card, Select } from "@/components/ui";
+import { Button, Card, ErrorBanner, Input, Select } from "@/components/ui";
 import { RadarChart } from "@/components/radar-chart";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+import { can } from "@/lib/permissions";
 import { positionLabel } from "@/lib/constants";
 import {
   PHYSICAL_METRICS,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/performance";
 import type { RosterEntry, StatsEvent } from "@/lib/stats";
 import type { Profile } from "@/lib/types";
+import { deletePhysicalMeasurement, updatePhysicalMeasurement } from "../actions";
 
 function fmt(value: number | null, digits = 1): string {
   if (value == null) return "-";
@@ -31,11 +33,12 @@ export default async function PhysicalDetailPage({
   searchParams,
 }: {
   params: Promise<{ userId: string }>;
-  searchParams: Promise<{ metric?: string }>;
+  searchParams: Promise<{ metric?: string; ok?: string; error?: string }>;
 }) {
   const { userId } = await params;
-  const { metric: metricParam } = await searchParams;
-  const { team } = await requireMembership();
+  const { metric: metricParam, ok, error } = await searchParams;
+  const { team, membership } = await requireMembership();
+  const canRecord = can.recordPhysical(membership.role);
   const supabase = await createClient();
 
   const [{ data: membersData }, { data: rowsData }, { data: eventsData }] =
@@ -48,7 +51,7 @@ export default async function PhysicalDetailPage({
         .order("cap_number"),
       supabase
         .from("physical_measurements")
-        .select("user_id, metric, value, measured_on")
+        .select("id, user_id, metric, value, measured_on")
         .eq("team_id", team.id),
       supabase
         .from("stats_events")
@@ -76,9 +79,9 @@ export default async function PhysicalDetailPage({
   if (!target) notFound();
 
   // numeric列はPostgREST/supabase-jsが文字列で返すため、ここで数値に正規化する
-  const rows: PhysicalMeasurementRow[] = ((rowsData ?? []) as PhysicalMeasurementRow[]).map(
-    (r) => ({ ...r, value: Number(r.value) })
-  );
+  const rows: (PhysicalMeasurementRow & { id: string })[] = (
+    (rowsData ?? []) as (PhysicalMeasurementRow & { id: string })[]
+  ).map((r) => ({ ...r, value: Number(r.value) }));
   const profiles = buildPhysicalProfiles(rows, roster);
   const profile = profiles.find((p) => p.user_id === userId)!;
   const comment = generatePhysicalComment(profile);
@@ -121,11 +124,21 @@ export default async function PhysicalDetailPage({
           {positionText}
         </span>
       </div>
+      <ErrorBanner message={error} />
+      {ok === "1" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          保存しました
+        </div>
+      )}
 
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-600">
           フィジカル7軸(本人 vs 同ポジ平均)
         </h2>
+        <p className="text-xs text-slate-400">
+          測定値を記録するほど各軸(チーム内での偏差値)が更新されます。
+          チーム内偏差値は2人以上の記録がある項目で差が出ます。
+        </p>
         <RadarChart
           axes={profile.axes.map((a) => ({
             label: a.label,
@@ -199,6 +212,55 @@ export default async function PhysicalDetailPage({
               </li>
             ))}
           </ul>
+        )}
+
+        {/* スタッフはこの項目の各記録をいつでも編集・削除できる */}
+        {canRecord && history.length > 0 && (
+          <div className="space-y-1.5 border-t border-slate-100 pt-3">
+            <p className="text-xs font-semibold text-slate-500">記録の編集・削除</p>
+            {history.map((h) => (
+              <div key={`edit-${h.id}`} className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 text-xs text-slate-500">
+                  {h.measured_on}
+                </span>
+                <form
+                  action={updatePhysicalMeasurement}
+                  className="flex min-w-0 flex-1 items-center gap-1"
+                >
+                  <input type="hidden" name="measurement_id" value={h.id} />
+                  <input type="hidden" name="user_id" value={userId} />
+                  <input type="hidden" name="measured_on" value={h.measured_on} />
+                  <Input
+                    type="number"
+                    step="any"
+                    inputMode="decimal"
+                    name="value"
+                    defaultValue={h.value}
+                    className="min-w-0 flex-1 px-2 py-1.5 text-sm tabular-nums"
+                    aria-label={`${h.measured_on}の${metricDef?.label ?? ""}`}
+                  />
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="min-h-9 shrink-0 px-2 text-xs"
+                  >
+                    保存
+                  </Button>
+                </form>
+                <form action={deletePhysicalMeasurement} className="shrink-0">
+                  <input type="hidden" name="measurement_id" value={h.id} />
+                  <input type="hidden" name="user_id" value={userId} />
+                  <Button
+                    type="submit"
+                    variant="danger"
+                    className="min-h-9 px-2 text-xs"
+                  >
+                    削除
+                  </Button>
+                </form>
+              </div>
+            ))}
+          </div>
         )}
       </Card>
 

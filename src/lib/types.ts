@@ -132,6 +132,30 @@ export interface TagTemplate {
   is_active: boolean;
 }
 
+export type AttendanceStatus = "present" | "absent" | "late" | "excused";
+
+export interface Practice {
+  id: string;
+  team_id: string;
+  practice_date: string; // "YYYY-MM-DD"
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  menu: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface PracticeAttendance {
+  id: string;
+  practice_id: string;
+  team_id: string;
+  user_id: string;
+  status: AttendanceStatus;
+  created_at: string;
+}
+
 export interface TacticalReport {
   id: string;
   team_id: string;

@@ -132,11 +132,17 @@ try {
     await scoreIs("1 - 0");
   });
 
-  await step("2タップでアシスト記録", async () => {
-    await page.click('button:has-text("選手ビー")');
+  await step("得点直後にアシスト選手を紐付け(選手ビー)", async () => {
+    // 得点後はアシストパネルが自動表示される。パネル内から選手ビーを選ぶ
+    await page.waitForSelector('[data-testid="assist-panel"]');
+    await page
+      .locator('[data-testid="assist-panel"] button:has-text("選手ビー")')
+      .click();
     await page.waitForTimeout(350);
-    await page.click('button:has-text("アシスト")');
-    await page.waitForTimeout(350);
+    // パネルが閉じる
+    if ((await page.locator('[data-testid="assist-panel"]').count()) > 0) {
+      throw new Error("アシスト選択後もパネルが閉じない");
+    }
   });
 
   await step("E誘発でEが自動ON", async () => {
@@ -157,6 +163,10 @@ try {
     await scoreIs("2 - 0");
     const toggle = await page.textContent('[data-testid="extra-toggle"]');
     if (!toggle.includes("OFF")) throw new Error(`EがOFFに戻らない: ${toggle}`);
+    // このゴールはアシストなし(パネルを閉じる)
+    await page.waitForSelector('[data-testid="assist-panel"]');
+    await page.click('button:has-text("アシストなしで閉じる")');
+    await page.waitForTimeout(350);
   });
 
   await step("GK記録: 失点(2-1)とセーブ", async () => {
@@ -171,17 +181,19 @@ try {
     await page.waitForTimeout(350);
   });
 
-  await step("チームイベント: 相手得点(2-2) → Undoで2-1に戻る", async () => {
-    await page.click('button:has-text("相手得点")');
-    await page.waitForTimeout(350);
-    await scoreIs("2 - 2");
+  await step("Undoで直前のセーブを取り消し→もう一度セーブ(件数維持の確認)", async () => {
+    // 相手得点ボタンは廃止(失点はGKで記録)。Undoの基本動作だけ確認する。
     await page.click('button:has-text("↩ 元に戻す")');
     await page.waitForTimeout(350);
     await scoreIs("2 - 1");
+    await page.click('button:has-text("キーパーシー")');
+    await page.waitForTimeout(350);
+    await page.click('button:has-text("セーブ")');
+    await page.waitForTimeout(350);
   });
 
-  await step("攻撃終了(シュートなし)を記録", async () => {
-    await page.click('button:has-text("攻撃終了(シュートなし)")');
+  await step("時間使い切り(攻撃終了)を記録", async () => {
+    await page.click('button:has-text("時間使い切り")');
     await page.waitForTimeout(350);
   });
 

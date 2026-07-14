@@ -136,6 +136,12 @@ export default async function PhysicalPage({
         </Card>
       )}
 
+      <p className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-900">
+        📊 下のランキングで選手名をタップすると、その選手の
+        <span className="font-semibold">レーダーチャート(7軸)</span>
+        と記録の推移が見られます。
+      </p>
+
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-600">種目別ランキング</h2>
         <form className="flex gap-2">

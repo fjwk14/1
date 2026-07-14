@@ -165,7 +165,7 @@ describe("describeEvent / formatRate", () => {
       describeEvent(ev({ type: "shot", subtype: "center", result: "goal", is_extra_man: true }), nameOf)
     ).toBe("選手A: センターシュート ◯ゴール (E)");
     expect(describeEvent(ev({ type: "attack_end_no_shot", player_id: null }), nameOf)).toBe(
-      "攻撃終了(シュートなし)"
+      "時間使い切り(攻撃終了)"
     );
   });
   it("formatRateはnullを-にする", () => {
