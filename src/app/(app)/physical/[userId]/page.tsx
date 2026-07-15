@@ -17,6 +17,7 @@ import {
 } from "@/lib/physical";
 import {
   buildGkPerformance,
+  buildPerformanceHistory,
   buildPerformanceProfiles,
 } from "@/lib/performance";
 import type { RosterEntry, StatsEvent } from "@/lib/stats";
@@ -42,7 +43,7 @@ export default async function PhysicalDetailPage({
   const canRecord = can.recordPhysical(membership);
   const supabase = await createClient();
 
-  const [{ data: membersData }, { data: rowsData }, { data: eventsData }] =
+  const [{ data: membersData }, { data: rowsData }, { data: eventsData }, { data: matchesData }] =
     await Promise.all([
       supabase
         .from("memberships")
@@ -57,6 +58,10 @@ export default async function PhysicalDetailPage({
       supabase
         .from("stats_events")
         .select("id, match_id, quarter, player_id, type, subtype, result, is_extra_man")
+        .eq("team_id", team.id),
+      supabase
+        .from("matches")
+        .select("id, title, opponent, match_date")
         .eq("team_id", team.id),
     ]);
 
@@ -109,6 +114,19 @@ export default async function PhysicalDetailPage({
   const gkCard = target.is_gk
     ? buildGkPerformance(events, statsRoster).find((c) => c.user_id === userId) ?? null
     : null;
+
+  // ---------- 試合別のプレー総合スコア推移 ----------
+  const matchInfoById = new Map(
+    ((matchesData ?? []) as { id: string; title: string; opponent: string | null; match_date: string | null }[]).map(
+      (m) => [m.id, m]
+    )
+  );
+  const performanceHistory = target.is_gk
+    ? []
+    : buildPerformanceHistory(events, statsRoster, userId)
+        .map((h) => ({ ...h, match: matchInfoById.get(h.match_id) }))
+        .filter((h) => h.match)
+        .sort((a, b) => (a.match!.match_date ?? "").localeCompare(b.match!.match_date ?? ""));
 
   const positionText = positionLabel(target.is_gk, target.field_position);
 
@@ -337,6 +355,31 @@ export default async function PhysicalDetailPage({
                   .join("・")}
                 は専用の記録項目がまだ無いため、既存の記録(アシスト・シュート関与・カット・被退水)からの簡易推定です。
               </p>
+            )}
+
+            {performanceHistory.length > 0 && (
+              <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                <p className="text-xs font-semibold text-slate-500">試合別の推移</p>
+                <ul className="space-y-1.5">
+                  {performanceHistory.map((h) => (
+                    <li key={h.match_id} className="flex items-center gap-2 text-xs">
+                      <span className="w-28 shrink-0 truncate text-slate-500">
+                        {h.match!.match_date ?? "日付未設定"}
+                        {h.match!.opponent ? ` vs ${h.match!.opponent}` : ""}
+                      </span>
+                      <span className="h-3 flex-1 rounded bg-slate-100">
+                        <span
+                          className="block h-3 rounded bg-emerald-500"
+                          style={{ width: `${Math.max(4, h.overallPerformance)}%` }}
+                        />
+                      </span>
+                      <span className="w-8 shrink-0 text-right font-semibold tabular-nums">
+                        {h.overallPerformance}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </>
         )}

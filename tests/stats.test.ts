@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGkLines,
+  buildOpponentSummary,
   buildPlayerLines,
   buildRankings,
   buildTeamSummary,
   describeEvent,
   formatRate,
   shotColumnOf,
+  yearsOf,
   type RosterEntry,
   type StatsEvent,
 } from "@/lib/stats";
@@ -147,6 +149,25 @@ describe("buildTeamSummary", () => {
     expect(s.exclusionRate).toBeCloseTo(1 / 3);
   });
 
+  it("退水守備成功率 = 5対6を凌いだ数 ÷ 自チームの退水数", () => {
+    const events = [
+      ev({ type: "exclusion" }),
+      ev({ type: "exclusion" }),
+      ev({ type: "exclusion" }),
+      ev({ type: "down_man_stop" }),
+      ev({ type: "down_man_stop" }),
+    ];
+    const s = buildTeamSummary(events);
+    expect(s.manDownDefenses).toBe(3);
+    expect(s.manDownStops).toBe(2);
+    expect(s.manDownStopRate).toBeCloseTo(2 / 3);
+  });
+
+  it("退水守備成功率は5対6局面が無ければnull", () => {
+    const s = buildTeamSummary([]);
+    expect(s.manDownStopRate).toBeNull();
+  });
+
   it("Q別攻撃効率 = シュート数 / (シュート数 + 攻撃終了数)", () => {
     const events = [
       ev({ type: "shot", subtype: "center", result: "miss", quarter: 2 }),
@@ -210,5 +231,54 @@ describe("buildRankings (主要アクションのランキング)", () => {
     const r = buildRankings([]);
     expect(r.goals).toEqual([]);
     expect(r.gkBlocks).toEqual([]);
+  });
+});
+
+describe("buildOpponentSummary", () => {
+  it("対戦相手ごとに勝敗・得失点を集計する", () => {
+    const matches = [
+      { opponent: "A大学", result: "win", score_for: 10, score_against: 8 },
+      { opponent: "A大学", result: "lose", score_for: 7, score_against: 9 },
+      { opponent: "B大学", result: "draw", score_for: 8, score_against: 8 },
+    ];
+    const summary = buildOpponentSummary(matches);
+    const a = summary.find((s) => s.opponent === "A大学")!;
+    expect(a.played).toBe(2);
+    expect(a.wins).toBe(1);
+    expect(a.losses).toBe(1);
+    expect(a.goalsFor).toBe(17);
+    expect(a.goalsAgainst).toBe(17);
+    const b = summary.find((s) => s.opponent === "B大学")!;
+    expect(b.draws).toBe(1);
+  });
+
+  it("対戦相手が未入力の試合は除外する", () => {
+    const matches = [
+      { opponent: null, result: "win", score_for: 5, score_against: 3 },
+      { opponent: "  ", result: "win", score_for: 5, score_against: 3 },
+    ];
+    expect(buildOpponentSummary(matches)).toEqual([]);
+  });
+
+  it("対戦数が多い順に並ぶ", () => {
+    const matches = [
+      { opponent: "A", result: "win", score_for: 1, score_against: 0 },
+      { opponent: "B", result: "win", score_for: 1, score_against: 0 },
+      { opponent: "B", result: "win", score_for: 1, score_against: 0 },
+    ];
+    const summary = buildOpponentSummary(matches);
+    expect(summary[0].opponent).toBe("B");
+  });
+});
+
+describe("yearsOf", () => {
+  it("重複を除いた年度を新しい順で返す", () => {
+    expect(yearsOf(["2026-04-01", "2025-11-02", "2026-07-01", null])).toEqual([
+      2026, 2025,
+    ]);
+  });
+
+  it("日付が無ければ空配列", () => {
+    expect(yearsOf([null, null])).toEqual([]);
   });
 });

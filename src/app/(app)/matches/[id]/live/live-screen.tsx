@@ -98,6 +98,7 @@ const ANALYSIS_OFFENSE: AnalysisAction[] = [
 const ANALYSIS_DEFENSE: AnalysisAction[] = [
   { label: "対人守備", description: "1対1で相手を止めた(守備力)", type: "defense_stop" },
   { label: "シュートブロック", description: "コースに入って防いだ(守備力)", type: "shot_block" },
+  { label: "5対6守備成功", description: "退水中に無失点で凌いだ(守備力)", type: "down_man_stop" },
   { label: "スティール", description: "相手からボールを奪った(判断力)", type: "steal_ball" },
   { label: "リバウンド奪取", description: "こぼれ球の回収(判断力)", type: "rebound_win" },
 ];

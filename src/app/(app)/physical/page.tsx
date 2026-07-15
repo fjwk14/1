@@ -75,6 +75,12 @@ export default async function PhysicalPage({
     <>
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-bold">💪 フィジカル測定・分析</h1>
+        <a
+          href="/api/physical/csv"
+          className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          ⬇ CSVダウンロード
+        </a>
       </div>
       <ErrorBanner message={error} />
 

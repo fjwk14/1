@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGkPerformance,
+  buildGkRanking,
+  buildPerformanceHistory,
   buildPerformanceProfiles,
 } from "@/lib/performance";
 import type { RosterEntry, StatsEvent } from "@/lib/stats";
@@ -89,18 +91,19 @@ describe("buildPerformanceProfiles", () => {
     expect(steal.rawValue).toBeCloseTo(4); // C=2, STL=1, RW=1
   });
 
-  it("守備力(defense) = 対人守備 + シュートブロック - 被退水*0.5、負はclamp", () => {
+  it("守備力(defense) = 対人守備 + シュートブロック + 5対6守備成功 - 被退水*0.5、負はclamp", () => {
     const events = [
       ev({ type: "defense_stop", player_id: "p1" }),
       ev({ type: "defense_stop", player_id: "p1" }),
       ev({ type: "shot_block", player_id: "p1" }),
+      ev({ type: "down_man_stop", player_id: "p1" }),
       ev({ type: "exclusion", player_id: "p1" }),
     ];
     const [p1] = buildPerformanceProfiles(events, roster);
     const defense = p1.axes.find((a) => a.key === "defense")!;
     expect(defense.label).toBe("守備力");
-    // DS=2, SB=1, EX=1 -> 2 + 1 - 0.5 = 2.5
-    expect(defense.rawValue).toBeCloseTo(2.5);
+    // DS=2, SB=1, DMS=1, EX=1 -> 2 + 1 + 1 - 0.5 = 3.5
+    expect(defense.rawValue).toBeCloseTo(3.5);
   });
 
   it("効率性は負になりうる(生値はclampしない、Tには反映される)", () => {
@@ -158,5 +161,56 @@ describe("buildGkPerformance", () => {
     const [gk] = buildGkPerformance([], roster);
     expect(gk.faced).toBe(0);
     expect(gk.saveRate).toBeNull();
+  });
+});
+
+describe("buildPerformanceHistory", () => {
+  it("試合ごとに総合プレースコアを算出する(試合単位でT得点を再計算)", () => {
+    const events = [
+      ev({ type: "shot", player_id: "p1", match_id: "m1", result: "goal" }),
+      ev({ type: "shot", player_id: "p2", match_id: "m1", result: "miss" }),
+      ev({ type: "shot", player_id: "p1", match_id: "m2", result: "miss" }),
+      ev({ type: "shot", player_id: "p2", match_id: "m2", result: "goal" }),
+    ];
+    const history = buildPerformanceHistory(events, roster, "p1");
+    expect(history.map((h) => h.match_id).sort()).toEqual(["m1", "m2"]);
+    // m1ではp1が得点、p2が外した -> p1のTが高い
+    const m1 = history.find((h) => h.match_id === "m1")!;
+    // m2ではp1が外し、p2が得点 -> p1のTが低い
+    const m2 = history.find((h) => h.match_id === "m2")!;
+    expect(m1.overallPerformance).toBeGreaterThan(m2.overallPerformance);
+  });
+
+  it("記録が無ければ空配列", () => {
+    expect(buildPerformanceHistory([], roster, "p1")).toEqual([]);
+  });
+});
+
+describe("buildGkRanking", () => {
+  const gkRoster: RosterEntry[] = [
+    { user_id: "gk1", name: "キーパーA", cap_number: 1, is_gk: true },
+    { user_id: "gk2", name: "キーパーB", cap_number: 4, is_gk: true },
+  ];
+
+  it("セーブ率が高いGKほどTが高い", () => {
+    const events = [
+      // gk1: セーブ2/被2 = 100%
+      ev({ type: "gk_faced", player_id: "gk1", result: "block" }),
+      ev({ type: "gk_faced", player_id: "gk1", result: "block" }),
+      // gk2: セーブ0/被2 = 0%
+      ev({ type: "gk_faced", player_id: "gk2", result: "goal_against" }),
+      ev({ type: "gk_faced", player_id: "gk2", result: "goal_against" }),
+    ];
+    const ranking = buildGkRanking(buildGkPerformance(events, gkRoster));
+    expect(ranking[0].user_id).toBe("gk1");
+    expect(ranking[0].t).toBeGreaterThan(ranking[1].t);
+  });
+
+  it("記録が無いGKはT=50", () => {
+    const ranking = buildGkRanking(buildGkPerformance([], gkRoster));
+    for (const g of ranking) {
+      expect(g.t).toBe(50);
+      expect(g.saveRate).toBeNull();
+    }
   });
 });

@@ -34,7 +34,8 @@ export type StatsEventType =
   | "side_switch" // サイド展開(展開力)
   | "screen" // スクリーン(創出力)
   | "shot_block" // シュートブロック(守備力)
-  | "steal_ball"; // スティール(判断力)
+  | "steal_ball" // スティール(判断力)
+  | "down_man_stop"; // 5対6守備成功(退水守備を凌いだ・守備力)
 
 export type ShotSubtype =
   | "center"
@@ -139,6 +140,8 @@ export function describeEvent(
       return `${who}: シュートブロック`;
     case "steal_ball":
       return `${who}: スティール`;
+    case "down_man_stop":
+      return `${who}: 5対6守備成功`;
     case "miss":
       return `${who}: ${MISS_SUBTYPE_LABELS[e.subtype as MissSubtype] ?? "ミス"}`;
     case "gk_faced":
@@ -366,6 +369,11 @@ export interface TeamSummary {
   drawnExclusions: number;
   extraManGoals: number;
   exclusionRate: number | null;
+  /** 退水守備成功率: 自チームが退水した(5対6になった)回数のうち、
+   *  相手に得点させず凌いだ割合 */
+  manDownDefenses: number;
+  manDownStops: number;
+  manDownStopRate: number | null;
   /** Q別「シュートまで持ち込んだ回数/攻撃数」 */
   attackEfficiency: Record<Quarter, { shots: number; attacks: number }>;
 }
@@ -382,6 +390,8 @@ export function buildTeamSummary(events: StatsEvent[]): TeamSummary {
 
   let drawnExclusions = 0;
   let extraManGoals = 0;
+  let manDownDefenses = 0;
+  let manDownStops = 0;
 
   for (const e of events) {
     const q = e.quarter;
@@ -399,6 +409,13 @@ export function buildTeamSummary(events: StatsEvent[]): TeamSummary {
         break;
       case "drawn_exclusion":
         if (e.subtype !== "penalty") drawnExclusions += 1;
+        break;
+      // 自チームの退水(=5対6の守備局面が発生した回数)
+      case "exclusion":
+        manDownDefenses += 1;
+        break;
+      case "down_man_stop":
+        manDownStops += 1;
         break;
       // 相手得点: GK経由(gk_faced goal_against)を正とし、
       // GKが関与しないもののみ opponent_goal で記録する運用
@@ -423,6 +440,9 @@ export function buildTeamSummary(events: StatsEvent[]): TeamSummary {
     extraManGoals,
     exclusionRate:
       drawnExclusions > 0 ? extraManGoals / drawnExclusions : null,
+    manDownDefenses,
+    manDownStops,
+    manDownStopRate: manDownDefenses > 0 ? manDownStops / manDownDefenses : null,
     attackEfficiency,
   };
 }
@@ -480,4 +500,63 @@ export function buildRankings(events: StatsEvent[]): Rankings {
     cuts: toSorted(counters.cuts),
     gkBlocks: toSorted(counters.gkBlocks),
   };
+}
+
+// ---------- 対戦相手別の通算成績 ----------
+
+export interface OpponentSummaryInput {
+  opponent: string | null;
+  result: string | null;
+  score_for: number | null;
+  score_against: number | null;
+}
+
+export interface OpponentSummaryEntry {
+  opponent: string;
+  played: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  goalsFor: number;
+  goalsAgainst: number;
+}
+
+// 対戦相手名(トリム後)ごとに勝敗・得失点を集計する。対戦相手未入力の
+// 試合は対象外(集計しても意味が無いため)。
+export function buildOpponentSummary(
+  matches: OpponentSummaryInput[]
+): OpponentSummaryEntry[] {
+  const byOpponent = new Map<string, OpponentSummaryEntry>();
+  for (const m of matches) {
+    const opponent = m.opponent?.trim();
+    if (!opponent) continue;
+    const entry = byOpponent.get(opponent) ?? {
+      opponent,
+      played: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+    };
+    entry.played += 1;
+    if (m.result === "win") entry.wins += 1;
+    else if (m.result === "lose") entry.losses += 1;
+    else if (m.result === "draw") entry.draws += 1;
+    entry.goalsFor += m.score_for ?? 0;
+    entry.goalsAgainst += m.score_against ?? 0;
+    byOpponent.set(opponent, entry);
+  }
+  return [...byOpponent.values()].sort((a, b) => b.played - a.played);
+}
+
+// ---------- シーズン(年度)フィルタ ----------
+
+// match_dateの一覧から実在する年度を新しい順で返す(プルダウンの選択肢用)
+export function yearsOf(dates: (string | null)[]): number[] {
+  const years = new Set<number>();
+  for (const d of dates) {
+    if (d && /^\d{4}-\d{2}-\d{2}/.test(d)) years.add(Number(d.slice(0, 4)));
+  }
+  return [...years].sort((a, b) => b - a);
 }

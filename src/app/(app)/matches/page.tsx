@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { Card, LinkButton } from "@/components/ui";
+import { Button, Card, LinkButton, Select } from "@/components/ui";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/permissions";
+import { buildOpponentSummary, yearsOf } from "@/lib/stats";
 import type { Match } from "@/lib/types";
 
 export default async function MatchesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ deleted?: string }>;
+  searchParams: Promise<{ deleted?: string; year?: string }>;
 }) {
-  const { deleted } = await searchParams;
+  const { deleted, year } = await searchParams;
   const { team, membership } = await requireMembership();
   const supabase = await createClient();
 
@@ -20,7 +21,13 @@ export default async function MatchesPage({
     .eq("team_id", team.id)
     .order("match_date", { ascending: false, nullsFirst: false });
 
-  const matches = (data ?? []) as Match[];
+  const allMatches = (data ?? []) as Match[];
+  const years = yearsOf(allMatches.map((m) => m.match_date));
+  const selectedYear = year && years.includes(Number(year)) ? Number(year) : null;
+  const matches = selectedYear
+    ? allMatches.filter((m) => m.match_date?.slice(0, 4) === String(selectedYear))
+    : allMatches;
+  const opponentSummary = buildOpponentSummary(matches);
 
   // 動画は後日添付されるため match_videos 側を数える
   const videoCounts = new Map<string, number>();
@@ -54,8 +61,54 @@ export default async function MatchesPage({
         </div>
       )}
 
+      {years.length > 1 && (
+        <form className="flex gap-2">
+          <Select
+            name="year"
+            defaultValue={selectedYear ? String(selectedYear) : ""}
+            className="flex-1 text-sm"
+          >
+            <option value="">全期間</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}年度
+              </option>
+            ))}
+          </Select>
+          <Button type="submit" variant="secondary" className="shrink-0">
+            表示
+          </Button>
+        </form>
+      )}
+
       {matches.length === 0 && (
         <Card className="text-sm text-slate-500">まだ試合がありません</Card>
+      )}
+
+      {opponentSummary.length > 0 && (
+        <details className="rounded-xl border border-slate-200 bg-white">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-600">
+            対戦相手別の通算成績({opponentSummary.length}校)
+          </summary>
+          <div className="space-y-1.5 px-4 pb-4">
+            {opponentSummary.map((o) => (
+              <div
+                key={o.opponent}
+                className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 text-sm first:border-t-0 first:pt-0"
+              >
+                <span className="min-w-0 truncate font-medium">{o.opponent}</span>
+                <span className="shrink-0 text-xs text-slate-500">
+                  <span className="text-emerald-600">{o.wins}勝</span>
+                  <span className="mx-0.5 text-rose-600">{o.losses}敗</span>
+                  {o.draws > 0 && <span className="mx-0.5">{o.draws}分</span>}
+                  <span className="ml-1.5 tabular-nums">
+                    ({o.goalsFor}-{o.goalsAgainst})
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {matches.map((m) => (

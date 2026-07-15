@@ -23,6 +23,7 @@ interface RawPlayerStats {
   SCR: number; // スクリーン(分析チーム記録・0019)
   SB: number; // シュートブロック(分析チーム記録・0019)
   STL: number; // スティール(分析チーム記録・0019)
+  DMS: number; // 5対6守備成功(分析チーム記録・0022)
 }
 
 function buildRawPlayerStats(
@@ -37,7 +38,7 @@ function buildRawPlayerStats(
         user_id: userId,
         G: 0, SH: 0, A: 0, DE: 0, C: 0, EX: 0, OF: 0, MISS: 0,
         KP: 0, CJ: 0, DS: 0, OBM: 0, RW: 0, DB: 0,
-        SS: 0, SCR: 0, SB: 0, STL: 0,
+        SS: 0, SCR: 0, SB: 0, STL: 0, DMS: 0,
       };
       stats.set(userId, s);
     }
@@ -103,6 +104,9 @@ function buildRawPlayerStats(
       case "steal_ball":
         s.STL += 1;
         break;
+      case "down_man_stop":
+        s.DMS += 1;
+        break;
     }
   }
 
@@ -148,8 +152,8 @@ function rawAxisValues(s: RawPlayerStats): Record<PerformanceAxisKey, number> {
     creativity: s.A + s.DE + s.OBM + s.SCR + s.DB,
     // 展開力: 縦パス(起点)+ 速攻参加 + サイド展開 + アシストの一部
     buildup: s.KP + s.CJ + s.SS + s.A * 0.5,
-    // 守備力: 対人守備 + シュートブロック。被退水はマイナス
-    defense: Math.max(0, s.DS + s.SB - s.EX * 0.5),
+    // 守備力: 対人守備 + シュートブロック + 5対6守備成功。被退水はマイナス
+    defense: Math.max(0, s.DS + s.SB + s.DMS - s.EX * 0.5),
     // 判断力: 相手の攻撃を読む力。カット + スティール + リバウンド奪取
     steal: s.C + s.STL + s.RW,
     efficiency: shotRate * 10 - (s.MISS + s.OF),
@@ -213,6 +217,33 @@ export function buildPerformanceProfiles(
     .sort((a, b) => a.cap_number - b.cap_number);
 }
 
+// ---------- 試合別のプレー総合スコア推移 ----------
+
+export interface PerformanceHistoryEntry {
+  match_id: string;
+  overallPerformance: number;
+}
+
+// 指定選手の総合プレースコアを試合ごとに算出する(試合単位でT得点を再計算)。
+// 呼び出し側で試合日と突き合わせて時系列に並べる。
+export function buildPerformanceHistory(
+  events: StatsEvent[],
+  roster: RosterEntry[],
+  userId: string
+): PerformanceHistoryEntry[] {
+  const matchIds = [...new Set(events.map((e) => e.match_id))];
+  return matchIds.map((matchId) => {
+    const matchEvents = events.filter((e) => e.match_id === matchId);
+    const profile = buildPerformanceProfiles(matchEvents, roster).find(
+      (p) => p.user_id === userId
+    );
+    return {
+      match_id: matchId,
+      overallPerformance: profile?.overallPerformance ?? 50,
+    };
+  });
+}
+
 // ---------- GK: 6軸レーダーには載せない専用集計 ----------
 
 export interface GkPerformanceCard {
@@ -266,4 +297,34 @@ export function buildGkPerformance(
   }
 
   return [...cards.values()].sort((a, b) => a.cap_number - b.cap_number);
+}
+
+// ---------- GK総合評価ランキング(セーブ率のチーム内偏差値) ----------
+
+export interface GkRankingEntry {
+  user_id: string;
+  name: string;
+  cap_number: number;
+  faced: number;
+  saveRate: number | null;
+  t: number;
+}
+
+// セーブ率をGK間の偏差値(T得点)化してランキングする。
+// 記録がまだ無い(saveRate=null)GKはT=50扱い。
+export function buildGkRanking(cards: GkPerformanceCard[]): GkRankingEntry[] {
+  const rates = cards
+    .map((c) => c.saveRate)
+    .filter((r): r is number => r != null);
+
+  return cards
+    .map((c) => ({
+      user_id: c.user_id,
+      name: c.name,
+      cap_number: c.cap_number,
+      faced: c.faced,
+      saveRate: c.saveRate,
+      t: c.saveRate == null ? 50 : deviationScore(rates, c.saveRate, true),
+    }))
+    .sort((a, b) => b.t - a.t);
 }

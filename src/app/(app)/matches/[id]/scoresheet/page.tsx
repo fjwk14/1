@@ -74,7 +74,15 @@ export default async function ScoresheetPage({
       <Link href={`/matches/${id}`} className="text-xs text-brand-600 underline">
         ← {match.title}
       </Link>
-      <h1 className="text-lg font-bold">記録シート</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-lg font-bold">記録シート</h1>
+        <a
+          href={`/api/matches/${id}/scoresheet-csv`}
+          className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          ⬇ CSVダウンロード
+        </a>
+      </div>
       <p className="text-sm text-slate-500">
         {match.match_date ?? ""}
         {match.opponent ? ` / vs ${match.opponent}` : ""} / イベント{events.length}件
@@ -123,7 +131,7 @@ export default async function ScoresheetPage({
         </div>
       </Card>
 
-      {/* 退水決定率 / 攻撃効率 */}
+      {/* 退水決定率 / 退水守備成功率 / 攻撃効率 */}
       <div className="grid grid-cols-2 gap-2">
         <Card>
           <h2 className="text-sm font-semibold text-slate-600">退水決定率</h2>
@@ -133,6 +141,13 @@ export default async function ScoresheetPage({
           </p>
         </Card>
         <Card>
+          <h2 className="text-sm font-semibold text-slate-600">退水守備成功率</h2>
+          <p className="mt-1 text-2xl font-bold">{formatRate(team.manDownStopRate)}</p>
+          <p className="text-xs text-slate-500">
+            凌いだ{team.manDownStops} / 5対6{team.manDownDefenses}回
+          </p>
+        </Card>
+        <Card className="col-span-2">
           <h2 className="text-sm font-semibold text-slate-600">
             シュートまで持ち込んだ回数
           </h2>

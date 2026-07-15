@@ -11,6 +11,7 @@ import {
 } from "@/lib/physical";
 import { buildGkPerformance, buildPerformanceProfiles } from "@/lib/performance";
 import { receivedCommentIds, type CommentForUnread } from "@/lib/notifications";
+import { monthlyAttendanceSummary } from "@/lib/practices";
 import type { RosterEntry, StatsEvent } from "@/lib/stats";
 import type { AttendanceStatus, ClipComment, Profile } from "@/lib/types";
 
@@ -26,6 +27,7 @@ export default async function MyPage() {
     { data: rowsData },
     { data: eventsData },
     { data: attendanceData },
+    { data: practicesData },
     { data: commentsData },
     { data: clipsData },
   ] = await Promise.all([
@@ -50,9 +52,10 @@ export default async function MyPage() {
       .eq("team_id", team.id),
     supabase
       .from("practice_attendances")
-      .select("status")
+      .select("practice_id, status")
       .eq("team_id", team.id)
       .eq("user_id", userId),
+    supabase.from("practices").select("id, practice_date").eq("team_id", team.id),
     supabase
       .from("clip_comments")
       .select("id, clip_id, parent_comment_id, user_id, mention_user_ids, comment, created_at, users(name)")
@@ -104,7 +107,10 @@ export default async function MyPage() {
     : null;
 
   // ---------- 出席率 ----------
-  const attendances = (attendanceData ?? []) as { status: AttendanceStatus }[];
+  const attendances = (attendanceData ?? []) as {
+    practice_id: string;
+    status: AttendanceStatus;
+  }[];
   const attendanceCounts: Record<AttendanceStatus, number> = {
     present: 0,
     absent: 0,
@@ -116,6 +122,23 @@ export default async function MyPage() {
   const attendedCount = attendanceCounts.present + attendanceCounts.late;
   const attendanceRate =
     totalPractices > 0 ? Math.round((attendedCount / totalPractices) * 100) : null;
+
+  const practiceDateById = new Map(
+    ((practicesData ?? []) as { id: string; practice_date: string }[]).map((p) => [
+      p.id,
+      p.practice_date,
+    ])
+  );
+  const monthlyAttendance = monthlyAttendanceSummary(
+    attendances
+      .map((a) => ({
+        status: a.status,
+        practice_date: practiceDateById.get(a.practice_id),
+      }))
+      .filter((a): a is { status: AttendanceStatus; practice_date: string } =>
+        Boolean(a.practice_date)
+      )
+  ).slice(0, 6);
 
   // ---------- 最近もらったコメント ----------
   const comments = (commentsData ?? []) as unknown as (ClipComment & {
@@ -198,6 +221,25 @@ export default async function MyPage() {
               <span>欠席 {attendanceCounts.absent}</span>
               <span>見学 {attendanceCounts.excused}</span>
             </div>
+            {monthlyAttendance.length > 0 && (
+              <div className="space-y-1 border-t border-slate-100 pt-2">
+                <p className="text-xs font-semibold text-slate-500">月別</p>
+                {monthlyAttendance.map((m) => (
+                  <div key={m.month} className="flex items-center gap-2 text-xs">
+                    <span className="w-16 shrink-0 text-slate-500">{m.month}</span>
+                    <span className="h-2.5 flex-1 rounded bg-slate-100">
+                      <span
+                        className="block h-2.5 rounded bg-brand-500"
+                        style={{ width: `${Math.max(4, m.rate ?? 0)}%` }}
+                      />
+                    </span>
+                    <span className="w-20 shrink-0 text-right tabular-nums text-slate-600">
+                      {m.rate}% ({m.present}/{m.total})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
         <Link href="/practices" className="text-xs text-brand-600 underline">
