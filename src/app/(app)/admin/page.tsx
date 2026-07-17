@@ -120,17 +120,18 @@ export default async function AdminPage({
           {members.map((m) => (
             <div key={m.id}>
               <Card className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <RoleBadge manager={isManager(m)} />
-                  <span className="min-w-0 truncate font-semibold">
-                    {m.users?.name ?? "不明"}
-                  </span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
-                    {gradeLabel(m.enrollment_year)}
-                  </span>
-                  <span className="min-w-0 truncate text-xs text-slate-400">
+                {/* 名前を優先表示(メールが長くても切れないよう別行に落とす) */}
+                <div className="space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <RoleBadge manager={isManager(m)} />
+                    <span className="font-semibold">{m.users?.name ?? "不明"}</span>
+                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                      {gradeLabel(m.enrollment_year)}
+                    </span>
+                  </div>
+                  <div className="truncate text-xs text-slate-400">
                     {m.users?.email}
-                  </span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Select
