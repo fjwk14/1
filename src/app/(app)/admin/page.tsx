@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { can, isManager, ROLE_LABELS } from "@/lib/permissions";
 import type { Membership, Profile, Role } from "@/lib/types";
 import { FIELD_POSITIONS } from "@/lib/constants";
+import { enrollmentYearOptions, gradeLabel } from "@/lib/grade";
 import { addMember, bulkUpdateMembers, removeMember } from "./actions";
 import InviteCodeCard from "./invite-code-card";
 
@@ -124,6 +125,9 @@ export default async function AdminPage({
                   <span className="min-w-0 truncate font-semibold">
                     {m.users?.name ?? "不明"}
                   </span>
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                    {gradeLabel(m.enrollment_year)}
+                  </span>
                   <span className="min-w-0 truncate text-xs text-slate-400">
                     {m.users?.email}
                   </span>
@@ -148,6 +152,21 @@ export default async function AdminPage({
                     {Object.entries(STATUS_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
                         {label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">入部年度(学年の算出に使用)</label>
+                  <Select
+                    name={`enrollment_year_${m.id}`}
+                    defaultValue={m.enrollment_year ? String(m.enrollment_year) : ""}
+                    className="w-full text-sm"
+                  >
+                    <option value="">未設定</option>
+                    {enrollmentYearOptions().map((y) => (
+                      <option key={y} value={String(y)}>
+                        {y}年入部
                       </option>
                     ))}
                   </Select>

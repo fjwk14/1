@@ -66,6 +66,7 @@ interface ParsedMemberUpdate {
   capNumber: number | null;
   isGk: boolean;
   fieldPosition: number | null;
+  enrollmentYear: number | null;
 }
 
 export async function bulkUpdateMembers(formData: FormData) {
@@ -112,6 +113,14 @@ export async function bulkUpdateMembers(formData: FormData) {
       if (Number.isInteger(p) && p >= 1 && p <= 6) fieldPosition = p;
     }
 
+    // 入部年度(学年の算出に使う)。空欄はnull。妥当な西暦のみ受け付ける
+    const rawYear = String(formData.get(`enrollment_year_${membershipId}`) ?? "").trim();
+    let enrollmentYear: number | null = null;
+    if (rawYear !== "") {
+      const y = Number(rawYear);
+      if (Number.isInteger(y) && y >= 2000 && y <= 2100) enrollmentYear = y;
+    }
+
     updates.push({
       membershipId,
       role: role.data,
@@ -120,6 +129,7 @@ export async function bulkUpdateMembers(formData: FormData) {
       capNumber,
       isGk,
       fieldPosition,
+      enrollmentYear,
     });
   }
 
@@ -170,6 +180,7 @@ export async function bulkUpdateMembers(formData: FormData) {
         cap_number: u.capNumber,
         is_gk: u.isGk,
         field_position: u.fieldPosition,
+        enrollment_year: u.enrollmentYear,
       })
       .eq("id", u.membershipId)
       .select("id");

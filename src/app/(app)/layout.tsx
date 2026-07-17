@@ -4,6 +4,8 @@ import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { can, ROLE_LABELS } from "@/lib/permissions";
 import { countUnreadComments, type CommentForUnread } from "@/lib/notifications";
+import { fetchUserPoints } from "@/lib/points-data";
+import { PointAvatar } from "@/components/ui";
 import { signOut } from "@/app/login/actions";
 
 // 未読バッジは別クエリ(コメント+既読)が必要なため、ヘッダー/ナビ本体の描画を
@@ -37,6 +39,22 @@ async function UnreadBadge({ teamId, userId }: { teamId: string; userId: string 
   );
 }
 
+// ポイントアバターは全行動の集計が要るため、ヘッダー本体を待たせないよう
+// Suspenseで分離してストリーミングする(未読バッジと同じ方針)。
+async function HeaderAvatar({
+  teamId,
+  userId,
+  name,
+}: {
+  teamId: string;
+  userId: string;
+  name: string;
+}) {
+  const supabase = await createClient();
+  const points = await fetchUserPoints(supabase, teamId, userId);
+  return <PointAvatar name={name} total={points.breakdown.total} size="sm" />;
+}
+
 export default async function AppLayout({
   children,
 }: {
@@ -60,10 +78,15 @@ export default async function AppLayout({
         <Link href="/dashboard" className="font-bold text-brand-900">
           {team.name}
         </Link>
-        <div className="flex items-center gap-3 text-sm">
-          <Link href="/me" className="text-slate-500 hover:text-brand-600">
-            {profile.name}
-            <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/me" className="flex items-center gap-1.5 text-slate-500 hover:text-brand-600">
+            <Suspense
+              fallback={<span className="inline-block h-7 w-7 shrink-0 rounded-full bg-slate-100" />}
+            >
+              <HeaderAvatar teamId={team.id} userId={userId} name={profile.name} />
+            </Suspense>
+            <span className="hidden sm:inline">{profile.name}</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
               {ROLE_LABELS[membership.role]}
               {membership.secondary_role
                 ? `/${ROLE_LABELS[membership.secondary_role]}`

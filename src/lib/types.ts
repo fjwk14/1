@@ -44,6 +44,7 @@ export interface Membership {
   cap_number: number | null;
   is_gk: boolean;
   field_position: number | null;
+  enrollment_year: number | null;
 }
 
 export interface Profile {
@@ -191,6 +192,45 @@ export interface PeerFeedback {
   to_user_id: string;
   good: string;
   advice: string | null;
+  created_at: string;
+}
+
+export type ProposalCategory = "app" | "team" | "practice" | "other";
+export type ProposalStatus = "open" | "reviewing" | "adopted" | "declined";
+
+export interface Proposal {
+  id: string;
+  team_id: string;
+  created_by: string;
+  category: ProposalCategory;
+  title: string;
+  body: string;
+  solution: string | null;
+  is_anonymous: boolean;
+  status: ProposalStatus;
+  created_at: string;
+}
+
+export type QaCategory = "class" | "job" | "skill" | "life" | "other";
+
+export interface QaQuestion {
+  id: string;
+  team_id: string;
+  created_by: string;
+  category: QaCategory;
+  title: string;
+  body: string;
+  is_anonymous: boolean;
+  resolved_answer_id: string | null;
+  created_at: string;
+}
+
+export interface QaAnswer {
+  id: string;
+  team_id: string;
+  question_id: string;
+  created_by: string;
+  body: string;
   created_at: string;
 }
 

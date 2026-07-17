@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, LinkButton } from "@/components/ui";
+import { Card, LinkButton, LevelChip, PointAvatar } from "@/components/ui";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { isManager, ROLE_LABELS } from "@/lib/permissions";
@@ -13,6 +13,8 @@ import { buildGkPerformance, buildPerformanceProfiles } from "@/lib/performance"
 import { receivedCommentIds, type CommentForUnread } from "@/lib/notifications";
 import { monthlyAttendanceSummary } from "@/lib/practices";
 import { todayJST, CONDITION_LABELS } from "@/lib/condition";
+import { fetchUserPoints } from "@/lib/points-data";
+import { earnedBadges, nextLevelProgress } from "@/lib/points";
 import type { RosterEntry, StatsEvent } from "@/lib/stats";
 import type {
   AttendanceStatus,
@@ -170,6 +172,12 @@ export default async function MyPage({
       )
   ).slice(0, 6);
 
+  // ---------- ポイント・レベル・バッジ ----------
+  const myPoints = await fetchUserPoints(supabase, team.id, userId);
+  const pointTotal = myPoints.breakdown.total;
+  const pointProgress = nextLevelProgress(pointTotal);
+  const myBadges = earnedBadges(myPoints.inputs, pointTotal);
+
   // ---------- コンディション(今日の記録+直近の推移) ----------
   const conditionLogs = ((conditionData ?? []) as ConditionLog[]).map((l) => ({
     ...l,
@@ -222,6 +230,52 @@ export default async function MyPage({
           ✓ 記録しました
         </div>
       )}
+
+      {/* ポイント・レベル */}
+      <Card className="space-y-3">
+        <div className="flex items-center gap-3">
+          <PointAvatar name={profile.name} total={pointTotal} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <LevelChip total={pointTotal} />
+              <Link href="/points" className="text-xs text-brand-600 underline">
+                詳しく →
+              </Link>
+            </div>
+            <div className="text-2xl font-bold tabular-nums text-brand-700">
+              {pointTotal}
+              <span className="ml-1 text-sm font-normal text-slate-400">pt</span>
+            </div>
+          </div>
+        </div>
+        {pointProgress.next && (
+          <div>
+            <div className="mb-1 flex justify-between text-xs text-slate-500">
+              <span>次: Lv.{pointProgress.next.label}</span>
+              <span>あと {pointProgress.remaining}pt</span>
+            </div>
+            <div className="h-2 rounded bg-slate-100">
+              <div
+                className="h-2 rounded bg-brand-500"
+                style={{ width: `${Math.round(pointProgress.ratio * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {myBadges.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {myBadges.map((b) => (
+              <span
+                key={b.key}
+                title={b.desc}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+              >
+                {b.icon} {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {/* 今日のコンディション */}
       <Card className="space-y-3">

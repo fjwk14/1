@@ -1,6 +1,7 @@
 import { clsx } from "clsx";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
+import { levelOf } from "@/lib/points";
 
 export function Card({
   className,
@@ -153,6 +154,62 @@ export function RoleBadge({
       )}
     >
       {manager ? "📋 マネ" : "🏊 選手"}
+    </span>
+  );
+}
+
+// メンバーの簡易アイコン: 名前の頭文字 + レベルに応じたリング色。
+// 累積ポイントでリングが スレート→ブルー→…→虹 と進化する。
+export function PointAvatar({
+  name,
+  total,
+  size = "md",
+  className,
+}: {
+  name: string;
+  total: number;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const level = levelOf(total);
+  const initial = (name ?? "?").trim().charAt(0) || "?";
+  const rainbow = level.key === "rainbow";
+  const sizes = {
+    sm: "h-7 w-7 text-xs ring-2",
+    md: "h-9 w-9 text-sm ring-2",
+    lg: "h-14 w-14 text-lg ring-4",
+  }[size];
+  return (
+    <span
+      title={`${level.label} / ${total}pt`}
+      className={clsx(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-bold ring-offset-1",
+        sizes,
+        rainbow
+          ? "bg-gradient-to-br from-fuchsia-500 via-amber-400 to-emerald-400 text-white ring-fuchsia-400"
+          : clsx(level.bg, level.text, level.ring),
+        className
+      )}
+    >
+      {initial}
+    </span>
+  );
+}
+
+// レベルの小さなチップ
+export function LevelChip({ total, className }: { total: number; className?: string }) {
+  const level = levelOf(total);
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold",
+        level.key === "rainbow"
+          ? "bg-gradient-to-r from-fuchsia-500 via-amber-400 to-emerald-400 text-white"
+          : clsx(level.bg, level.text),
+        className
+      )}
+    >
+      Lv.{level.label}
     </span>
   );
 }

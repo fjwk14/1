@@ -916,4 +916,127 @@ describe.skipIf(!DATABASE_URL)("RLS統合テスト(実PostgreSQL)", () => {
       }
     });
   });
+
+  describe("提案ボックス(proposals)", () => {
+    it("メンバーは本人名義で提案でき、なりすましは弾かれる", async () => {
+      await asUser(PLAYER, async (q) => {
+        const ok = await q(
+          `insert into proposals (team_id, created_by, category, title, body)
+           values ($1, $2, 'app', 'ダーク対応', '夜見づらい') returning id`,
+          [TEAM_A, PLAYER]
+        );
+        expect(ok.rowCount).toBe(1);
+        await expect(
+          q(
+            `insert into proposals (team_id, created_by, category, title, body)
+             values ($1, $2, 'app', 'なりすまし', 'x')`,
+            [TEAM_A, CAPTAIN]
+          )
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("状態変更は著者以外だと幹部系のみ(一般選手は0行)", async () => {
+      // 著者を STAFF(戦術チーム=幹部系ではない)にして、著者でない PLAYER が
+      // 変更できないこと、幹部系の CAPTAIN が変更できることを確かめる
+      const pid = "eeeeeeee-0000-0000-0000-000000000001";
+      await db.query(`
+        insert into public.proposals (id, team_id, created_by, category, title, body)
+        values ('${pid}', '${TEAM_A}', '${STAFF}', 'team', 'x', 'y')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(PLAYER, async (q) => {
+          const res = await q(
+            "update proposals set status = 'adopted' where id = $1",
+            [pid]
+          );
+          expect(res.rowCount).toBe(0); // 著者でも幹部でもないので不可
+        });
+        await asUser(CAPTAIN, async (q) => {
+          const res = await q(
+            "update proposals set status = 'adopted' where id = $1 returning status",
+            [pid]
+          );
+          expect(res.rows[0].status).toBe("adopted");
+        });
+      } finally {
+        await db.query(`delete from public.proposals where id = '${pid}'`);
+      }
+    });
+
+    it("部外者には他チームの提案が見えない", async () => {
+      const pid = "eeeeeeee-0000-0000-0000-000000000002";
+      await db.query(`
+        insert into public.proposals (id, team_id, created_by, category, title, body)
+        values ('${pid}', '${TEAM_A}', '${PLAYER}', 'app', 'x', 'y')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(OUTSIDER, async (q) => {
+          const res = await q("select id from proposals where team_id = $1", [TEAM_A]);
+          expect(res.rowCount).toBe(0);
+        });
+      } finally {
+        await db.query(`delete from public.proposals where id = '${pid}'`);
+      }
+    });
+  });
+
+  describe("Q&A掲示板(qa_questions / qa_answers)", () => {
+    const QID = "ffffffff-0000-0000-0000-000000000001";
+
+    beforeAll(async () => {
+      await db.query(`
+        insert into public.qa_questions (id, team_id, created_by, category, title, body)
+        values ('${QID}', '${TEAM_A}', '${PLAYER}', 'class', '単位', '楽単ある?')
+        on conflict (id) do nothing`);
+    });
+
+    it("メンバーは記名で回答できる(なりすまし不可)", async () => {
+      await asUser(CAPTAIN, async (q) => {
+        const ok = await q(
+          `insert into qa_answers (team_id, question_id, created_by, body)
+           values ($1, $2, $3, '統計がおすすめ') returning id`,
+          [TEAM_A, QID, CAPTAIN]
+        );
+        expect(ok.rowCount).toBe(1);
+        await expect(
+          q(
+            `insert into qa_answers (team_id, question_id, created_by, body)
+             values ($1, $2, $3, 'なりすまし')`,
+            [TEAM_A, QID, PLAYER]
+          )
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("ベストアンサーは質問者のみ設定でき、他人は不可(0行)", async () => {
+      const ans = await db.query(`
+        insert into public.qa_answers (team_id, question_id, created_by, body)
+        values ('${TEAM_A}', '${QID}', '${CAPTAIN}', '体育がおすすめ') returning id`);
+      const answerId = ans.rows[0].id;
+      try {
+        // 他人(CAPTAIN)は質問のresolved_answer_idを変えられない
+        await asUser(CAPTAIN, async (q) => {
+          const res = await q(
+            "update qa_questions set resolved_answer_id = $1 where id = $2",
+            [answerId, QID]
+          );
+          expect(res.rowCount).toBe(0);
+        });
+        // 質問者(PLAYER)は設定できる
+        await asUser(PLAYER, async (q) => {
+          const res = await q(
+            "update qa_questions set resolved_answer_id = $1 where id = $2 returning resolved_answer_id",
+            [answerId, QID]
+          );
+          expect(res.rows[0].resolved_answer_id).toBe(answerId);
+        });
+      } finally {
+        await db.query(
+          `update public.qa_questions set resolved_answer_id = null where id = '${QID}'`
+        );
+        await db.query(`delete from public.qa_answers where id = '${answerId}'`);
+      }
+    });
+  });
 });

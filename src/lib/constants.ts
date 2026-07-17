@@ -52,6 +52,37 @@ export const PRACTICE_STATUS_LABELS: Record<string, string> = {
   done: "実施済み",
 };
 
+// 提案ボックスの種別・状態
+export const PROPOSAL_CATEGORY_LABELS: Record<string, string> = {
+  app: "アプリ改善",
+  team: "チームの課題",
+  practice: "練習メニュー",
+  other: "その他",
+};
+
+export const PROPOSAL_STATUS_LABELS: Record<string, string> = {
+  open: "受付",
+  reviewing: "検討中",
+  adopted: "採用",
+  declined: "見送り",
+};
+
+export const PROPOSAL_STATUS_STYLES: Record<string, string> = {
+  open: "bg-sky-100 text-sky-700",
+  reviewing: "bg-amber-100 text-amber-700",
+  adopted: "bg-emerald-100 text-emerald-700",
+  declined: "bg-slate-200 text-slate-500",
+};
+
+// Q&A掲示板の種別
+export const QA_CATEGORY_LABELS: Record<string, string> = {
+  class: "授業・単位",
+  job: "就活",
+  skill: "水球のコツ",
+  life: "部の生活",
+  other: "その他",
+};
+
 // メンバーのポジション表示(GK優先、次に field_position)
 export function positionLabel(isGk: boolean, fieldPosition: number | null): string {
   if (isGk) return "GK";

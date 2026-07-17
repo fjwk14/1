@@ -8,6 +8,8 @@ import {
   formatRate,
   type StatsEvent,
 } from "@/lib/stats";
+import { todayJST } from "@/lib/condition";
+import { shachiMessage } from "@/lib/shachi";
 import type { ClipTag, Match, Profile, TacticalReport } from "@/lib/types";
 
 const RESULT_LABELS: Record<string, string> = {
@@ -24,10 +26,23 @@ const RESULT_STYLES: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const { team } = await requireMembership();
+  const { team, userId, profile } = await requireMembership();
   const supabase = await createClient();
+  const today = todayJST();
 
-  const [recentMatchesRes, eventsRes, membersRes, tagsRes, commentsRes, reportsRes] =
+  const [
+    recentMatchesRes,
+    eventsRes,
+    membersRes,
+    tagsRes,
+    commentsRes,
+    reportsRes,
+    myConditionRes,
+    practicesRes,
+    myAttendanceRes,
+    proposalsRes,
+    questionsRes,
+  ] =
     await Promise.all([
       // 直近5試合分を取得し、上位3件を表示・残りはスタッツ要約の集計対象にする
       supabase
@@ -60,6 +75,31 @@ export default async function DashboardPage() {
         .eq("team_id", team.id)
         .order("created_at", { ascending: false })
         .limit(5),
+      // シャチの一言・行動喚起に使う軽量な取得
+      supabase
+        .from("condition_logs")
+        .select("log_date")
+        .eq("team_id", team.id)
+        .eq("user_id", userId)
+        .eq("log_date", today)
+        .maybeSingle(),
+      supabase
+        .from("practices")
+        .select("id, practice_date")
+        .eq("team_id", team.id)
+        .eq("status", "scheduled")
+        .order("practice_date", { ascending: true }),
+      supabase
+        .from("practice_attendances")
+        .select("practice_id")
+        .eq("team_id", team.id)
+        .eq("user_id", userId),
+      supabase.from("proposals").select("status").eq("team_id", team.id).eq("status", "open"),
+      supabase
+        .from("qa_questions")
+        .select("resolved_answer_id")
+        .eq("team_id", team.id)
+        .is("resolved_answer_id", null),
     ]);
 
   const recentMatches = (recentMatchesRes.data ?? []) as Pick<
@@ -109,6 +149,24 @@ export default async function DashboardPage() {
     { label: "対人守備成功", value: `${defenseStopCount}件` },
   ];
 
+  // ---------- シャチの一言(ルールベース) ----------
+  const scheduledPractices = (practicesRes.data ?? []) as { id: string; practice_date: string }[];
+  const answeredPractice = new Set(
+    ((myAttendanceRes.data ?? []) as { practice_id: string }[]).map((a) => a.practice_id)
+  );
+  const nextPractice = scheduledPractices.find((p) => p.practice_date >= today) ?? null;
+  const shachi = shachiMessage({
+    userName: profile.name,
+    todayConditionLogged: Boolean(myConditionRes.data),
+    attendanceRatePct: null,
+    upcomingPracticeDate: nextPractice?.practice_date ?? null,
+    unansweredPractice: nextPractice ? !answeredPractice.has(nextPractice.id) : false,
+    topStreakName: null,
+    openProposals: (proposalsRes.data ?? []).length,
+    unresolvedQuestions: (questionsRes.data ?? []).length,
+    today,
+  });
+
   // ---------- 選手ハイライト(通算記録からの得点王・アシスト王) ----------
   const rankings = buildRankings(allEvents);
   const topGoal = rankings.goals[0];
@@ -141,6 +199,34 @@ export default async function DashboardPage() {
         <LinkButton href="/matches/new" className="min-h-9 px-3 text-xs">
           + 試合登録
         </LinkButton>
+      </div>
+
+      {/* シャチの一言(マスコット) */}
+      <Card className="flex items-center gap-3 border-brand-200 bg-brand-50/50">
+        {/* アプリアイコンのシャチを流用 */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icon.png"
+          alt="シャチ"
+          className="h-12 w-12 shrink-0 rounded-full bg-white object-contain ring-2 ring-brand-200"
+        />
+        <p className="min-w-0 text-sm text-slate-700">{shachi}</p>
+      </Card>
+
+      {/* エンゲージメント導線 */}
+      <div className="grid grid-cols-3 gap-2">
+        <Link href="/points" className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+          <div className="text-xl">⭐</div>
+          <div className="text-xs font-semibold text-slate-600">ポイント</div>
+        </Link>
+        <Link href="/proposals" className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+          <div className="text-xl">💡</div>
+          <div className="text-xs font-semibold text-slate-600">提案ボックス</div>
+        </Link>
+        <Link href="/qa" className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
+          <div className="text-xl">🎓</div>
+          <div className="text-xs font-semibold text-slate-600">Q&A</div>
+        </Link>
       </div>
 
       <section className="space-y-2">

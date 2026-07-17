@@ -1,0 +1,180 @@
+import Link from "next/link";
+import { Card, LevelChip, PointAvatar } from "@/components/ui";
+import { requireMembership } from "@/lib/session";
+import { createClient } from "@/lib/supabase/server";
+import { fetchTeamPointInputs } from "@/lib/points-data";
+import {
+  computePoints,
+  earnedBadges,
+  nextLevelProgress,
+  POINT_RULE_LABELS,
+  emptyPointInputs,
+} from "@/lib/points";
+import type { Profile, Role } from "@/lib/types";
+
+// ポイント/レベルのハブ。自分の現在地・チームのトップ・獲得バッジ・
+// ポイントの貯め方をまとめる。順位は上位のみ見せ、下位は晒さない
+// (やる気を削がないための設計)。
+export default async function PointsPage() {
+  const { team, userId } = await requireMembership();
+  const supabase = await createClient();
+
+  const [{ data: membersData }, inputsMap] = await Promise.all([
+    supabase
+      .from("memberships")
+      .select("user_id, role, secondary_role, users(name)")
+      .eq("team_id", team.id)
+      .eq("status", "active"),
+    fetchTeamPointInputs(supabase, team.id),
+  ]);
+
+  const members = (
+    (membersData ?? []) as unknown as {
+      user_id: string;
+      role: Role;
+      secondary_role: Role | null;
+      users: Pick<Profile, "name"> | null;
+    }[]
+  ).map((m) => {
+    const inputs = inputsMap.get(m.user_id) ?? emptyPointInputs();
+    return {
+      user_id: m.user_id,
+      name: m.users?.name ?? "不明",
+      total: computePoints(inputs).total,
+    };
+  });
+
+  const ranked = [...members].sort((a, b) => b.total - a.total);
+  const myRank = ranked.findIndex((m) => m.user_id === userId);
+  const me = ranked[myRank];
+  const myInputs = inputsMap.get(userId) ?? emptyPointInputs();
+  const myTotal = me?.total ?? 0;
+  const prog = nextLevelProgress(myTotal);
+  const myBadges = earnedBadges(myInputs, myTotal);
+  const top = ranked.slice(0, 5).filter((m) => m.total > 0);
+  const medals = ["🥇", "🥈", "🥉"];
+
+  return (
+    <>
+      <h1 className="text-lg font-bold">⭐ ポイント</h1>
+
+      {/* 自分の現在地 */}
+      <Card className="space-y-3">
+        <div className="flex items-center gap-3">
+          <PointAvatar name={me?.name ?? "?"} total={myTotal} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">{me?.name ?? "あなた"}</span>
+              <LevelChip total={myTotal} />
+            </div>
+            <div className="text-2xl font-bold tabular-nums text-brand-700">
+              {myTotal}
+              <span className="ml-1 text-sm font-normal text-slate-400">pt</span>
+            </div>
+          </div>
+          {myRank >= 0 && (
+            <div className="shrink-0 text-right">
+              <div className="text-xs text-slate-400">チーム内</div>
+              <div className="text-lg font-bold">{myRank + 1}位</div>
+            </div>
+          )}
+        </div>
+        {prog.next ? (
+          <div>
+            <div className="mb-1 flex justify-between text-xs text-slate-500">
+              <span>次: Lv.{prog.next.label}</span>
+              <span>あと {prog.remaining}pt</span>
+            </div>
+            <div className="h-2 rounded bg-slate-100">
+              <div
+                className="h-2 rounded bg-brand-500"
+                style={{ width: `${Math.round(prog.ratio * 100)}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-center text-xs font-semibold text-fuchsia-600">
+            🌈 最高レベル「虹」に到達!
+          </p>
+        )}
+      </Card>
+
+      {/* 獲得バッジ */}
+      <Card className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-600">獲得バッジ</h2>
+        {myBadges.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            まだありません。記録・FB・提案などで集まります。
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {myBadges.map((b) => (
+              <span
+                key={b.key}
+                title={b.desc}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+              >
+                <span>{b.icon}</span>
+                {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* チームのトップ */}
+      <Card className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-600">🏅 チームのトップ</h2>
+        {top.length === 0 ? (
+          <p className="text-sm text-slate-400">まだポイントの動きがありません</p>
+        ) : (
+          <ol className="space-y-1.5">
+            {top.map((m, i) => (
+              <li key={m.user_id} className="flex items-center gap-2 text-sm">
+                <span className="w-6 shrink-0 text-center">{medals[i] ?? `${i + 1}.`}</span>
+                <PointAvatar name={m.name} total={m.total} size="sm" />
+                <span
+                  className={`min-w-0 truncate ${i === 0 ? "font-bold" : "font-medium"}`}
+                >
+                  {m.name}
+                </span>
+                <LevelChip total={m.total} />
+                <span className="ml-auto shrink-0 font-bold tabular-nums text-brand-700">
+                  {m.total}
+                  <span className="ml-0.5 text-xs font-normal text-slate-400">pt</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="text-[10px] text-slate-400">
+          ※ 全員の順位ではなく上位のみ表示しています(自分の順位は上のカードで確認できます)。
+        </p>
+      </Card>
+
+      {/* ポイントの貯め方 */}
+      <Card className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-600">ポイントの貯め方</h2>
+        <ul className="space-y-1 text-sm">
+          {POINT_RULE_LABELS.map((r) => (
+            <li key={r.label} className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-slate-600">{r.label}</span>
+              <span className="shrink-0 font-semibold text-brand-700">{r.value}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 text-xs">
+          <Link href="/proposals" className="text-brand-600 underline">
+            💡 提案ボックス
+          </Link>
+          <Link href="/qa" className="text-brand-600 underline">
+            🎓 Q&A掲示板
+          </Link>
+          <Link href="/me" className="text-brand-600 underline">
+            マイページ
+          </Link>
+        </div>
+      </Card>
+    </>
+  );
+}
