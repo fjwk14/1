@@ -37,6 +37,7 @@ export const ATTENDANCE_LABELS: Record<string, string> = {
   present: "出席",
   absent: "欠席",
   late: "遅刻",
+  early_leave: "早退",
   excused: "見学",
 };
 
@@ -44,7 +45,15 @@ export const ATTENDANCE_STYLES: Record<string, string> = {
   present: "bg-emerald-100 text-emerald-700",
   absent: "bg-rose-100 text-rose-700",
   late: "bg-amber-100 text-amber-700",
+  early_leave: "bg-orange-100 text-orange-700",
   excused: "bg-slate-200 text-slate-600",
+};
+
+// 自主練の種別
+export const SELF_PRACTICE_CATEGORY_LABELS: Record<string, string> = {
+  swim: "水中自主",
+  weight: "ウエイト",
+  other: "その他",
 };
 
 export const PRACTICE_STATUS_LABELS: Record<string, string> = {

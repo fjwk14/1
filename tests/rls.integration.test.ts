@@ -1039,4 +1039,171 @@ describe.skipIf(!DATABASE_URL)("RLS統合テスト(実PostgreSQL)", () => {
       }
     });
   });
+
+  describe("手動ポイント付与(point_grants)", () => {
+    it("幹部(主将)は理由付きで付与でき、選手は付与できない", async () => {
+      await asUser(CAPTAIN, async (q) => {
+        const ok = await q(
+          `insert into point_grants (team_id, user_id, granted_by, points, reason)
+           values ($1, $2, $3, 10, '大会運営を手伝ってくれた') returning id`,
+          [TEAM_A, PLAYER, CAPTAIN]
+        );
+        expect(ok.rowCount).toBe(1);
+        await q("delete from point_grants where id = $1", [ok.rows[0].id]);
+      });
+      await asUser(PLAYER, async (q) => {
+        await expect(
+          q(
+            `insert into point_grants (team_id, user_id, granted_by, points, reason)
+             values ($1, $2, $3, 10, '自己申告')`,
+            [TEAM_A, PLAYER, PLAYER]
+          )
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("他人になりすまして付与できない(granted_byは自分のみ)", async () => {
+      await asUser(CAPTAIN, async (q) => {
+        await expect(
+          q(
+            `insert into point_grants (team_id, user_id, granted_by, points, reason)
+             values ($1, $2, $3, 10, 'なりすまし')`,
+            [TEAM_A, PLAYER, ADMIN]
+          )
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("ポイントは1〜200の範囲外だとDB制約で弾かれる", async () => {
+      await asUser(CAPTAIN, async (q) => {
+        await expect(
+          q(
+            `insert into point_grants (team_id, user_id, granted_by, points, reason)
+             values ($1, $2, $3, 500, '範囲外')`,
+            [TEAM_A, PLAYER, CAPTAIN]
+          )
+        ).rejects.toThrow();
+      });
+    });
+
+    it("閲覧はチーム内全員、部外者には見えない", async () => {
+      const gid = "aaaaaaaa-1111-0000-0000-000000000001";
+      await db.query(`
+        insert into public.point_grants (id, team_id, user_id, granted_by, points, reason)
+        values ('${gid}', '${TEAM_A}', '${PLAYER}', '${CAPTAIN}', 20, '透明性テスト')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(STAFF, async (q) => {
+          const res = await q("select id from point_grants where id = $1", [gid]);
+          expect(res.rowCount).toBe(1);
+        });
+        await asUser(OUTSIDER, async (q) => {
+          const res = await q("select id from point_grants where id = $1", [gid]);
+          expect(res.rowCount).toBe(0);
+        });
+      } finally {
+        await db.query(`delete from public.point_grants where id = '${gid}'`);
+      }
+    });
+
+    it("取消は付与者本人 or 管理者のみ(無関係な選手は0行)", async () => {
+      const gid = "aaaaaaaa-1111-0000-0000-000000000002";
+      await db.query(`
+        insert into public.point_grants (id, team_id, user_id, granted_by, points, reason)
+        values ('${gid}', '${TEAM_A}', '${PLAYER}', '${CAPTAIN}', 20, '取消テスト')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(PLAYER, async (q) => {
+          const res = await q("delete from point_grants where id = $1", [gid]);
+          expect(res.rowCount).toBe(0);
+        });
+        await asUser(ADMIN, async (q) => {
+          const res = await q("delete from point_grants where id = $1 returning id", [gid]);
+          expect(res.rowCount).toBe(1);
+        });
+      } finally {
+        await db.query(`delete from public.point_grants where id = '${gid}'`);
+      }
+    });
+  });
+
+  describe("自主練記録(self_practices)", () => {
+    it("本人名義で記録でき、なりすましは弾かれる", async () => {
+      await asUser(PLAYER, async (q) => {
+        const ok = await q(
+          `insert into self_practices (team_id, user_id, practice_date, category, menu)
+           values ($1, $2, '2026-07-15', 'weight', 'スクワット3セット') returning id`,
+          [TEAM_A, PLAYER]
+        );
+        expect(ok.rowCount).toBe(1);
+        await expect(
+          q(
+            `insert into self_practices (team_id, user_id, practice_date, category)
+             values ($1, $2, '2026-07-15', 'swim')`,
+            [TEAM_A, CAPTAIN]
+          )
+        ).rejects.toThrow(/row-level security/);
+      });
+    });
+
+    it("チーム内全員が見られるが、部外者には見えない", async () => {
+      const sid = "bbbbbbbb-1111-0000-0000-000000000001";
+      await db.query(`
+        insert into public.self_practices (id, team_id, user_id, practice_date, category)
+        values ('${sid}', '${TEAM_A}', '${PLAYER}', '2026-07-14', 'swim')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(CAPTAIN, async (q) => {
+          const res = await q("select id from self_practices where id = $1", [sid]);
+          expect(res.rowCount).toBe(1);
+        });
+        await asUser(OUTSIDER, async (q) => {
+          const res = await q("select id from self_practices where id = $1", [sid]);
+          expect(res.rowCount).toBe(0);
+        });
+      } finally {
+        await db.query(`delete from public.self_practices where id = '${sid}'`);
+      }
+    });
+
+    it("本人でも他人の記録は削除できない(0行)", async () => {
+      const sid = "bbbbbbbb-1111-0000-0000-000000000002";
+      await db.query(`
+        insert into public.self_practices (id, team_id, user_id, practice_date, category)
+        values ('${sid}', '${TEAM_A}', '${CAPTAIN}', '2026-07-14', 'other')
+        on conflict (id) do nothing`);
+      try {
+        await asUser(PLAYER, async (q) => {
+          const res = await q("delete from self_practices where id = $1", [sid]);
+          expect(res.rowCount).toBe(0);
+        });
+      } finally {
+        await db.query(`delete from public.self_practices where id = '${sid}'`);
+      }
+    });
+  });
+
+  describe("早退(practice_attendances.early_leave)", () => {
+    const PRACTICE_EL = "cccccccc-1111-0000-0000-000000000001";
+
+    beforeAll(async () => {
+      await db.query(`
+        insert into public.practices (id, team_id, practice_date, status, created_by)
+        values ('${PRACTICE_EL}', '${TEAM_A}', '2026-07-14', 'done', '${ADMIN}')
+        on conflict (id) do nothing`);
+    });
+
+    it("自分の出欠にearly_leaveを設定できる", async () => {
+      await asUser(PLAYER, async (q) => {
+        const res = await q(
+          `insert into practice_attendances (practice_id, team_id, user_id, status)
+           values ($1, $2, $3, 'early_leave')
+           on conflict (practice_id, user_id) do update set status = 'early_leave'
+           returning status`,
+          [PRACTICE_EL, TEAM_A, PLAYER]
+        );
+        expect(res.rows[0].status).toBe("early_leave");
+      });
+    });
+  });
 });

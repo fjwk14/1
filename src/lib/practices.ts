@@ -8,7 +8,7 @@ export interface AttendanceForSummary {
 
 export interface MonthlyAttendanceEntry {
   month: string; // "YYYY-MM"
-  present: number; // 出席+遅刻
+  present: number; // 出席+遅刻+早退(参加はした扱い)
   absent: number;
   total: number;
   rate: number | null;
@@ -23,7 +23,9 @@ export function monthlyAttendanceSummary(
     const month = r.practice_date.slice(0, 7);
     const e = byMonth.get(month) ?? { present: 0, absent: 0, total: 0 };
     e.total += 1;
-    if (r.status === "present" || r.status === "late") e.present += 1;
+    if (r.status === "present" || r.status === "late" || r.status === "early_leave") {
+      e.present += 1;
+    }
     if (r.status === "absent") e.absent += 1;
     byMonth.set(month, e);
   }

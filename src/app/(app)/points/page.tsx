@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Card, LevelChip, PointAvatar } from "@/components/ui";
+import { Button, Card, ErrorBanner, Input, Label, LevelChip, PointAvatar, Select, Textarea } from "@/components/ui";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
+import { can } from "@/lib/permissions";
 import { fetchTeamPointInputs } from "@/lib/points-data";
 import {
   computePoints,
@@ -10,22 +11,34 @@ import {
   POINT_RULE_LABELS,
   emptyPointInputs,
 } from "@/lib/points";
-import type { Profile, Role } from "@/lib/types";
+import type { PointGrant, Profile, Role } from "@/lib/types";
+import { grantPoints, revokePointGrant } from "./actions";
 
 // ポイント/レベルのハブ。自分の現在地・チームのトップ・獲得バッジ・
 // ポイントの貯め方をまとめる。順位は上位のみ見せ、下位は晒さない
 // (やる気を削がないための設計)。
-export default async function PointsPage() {
-  const { team, userId } = await requireMembership();
+export default async function PointsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
+  const { error, ok } = await searchParams;
+  const { team, userId, membership } = await requireMembership();
   const supabase = await createClient();
 
-  const [{ data: membersData }, inputsMap] = await Promise.all([
+  const [{ data: membersData }, inputsMap, { data: grantsData }] = await Promise.all([
     supabase
       .from("memberships")
       .select("user_id, role, secondary_role, users(name)")
       .eq("team_id", team.id)
       .eq("status", "active"),
     fetchTeamPointInputs(supabase, team.id),
+    supabase
+      .from("point_grants")
+      .select("id, user_id, granted_by, points, reason, created_at")
+      .eq("team_id", team.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const members = (
@@ -43,6 +56,7 @@ export default async function PointsPage() {
       total: computePoints(inputs).total,
     };
   });
+  const nameOf = new Map(members.map((m) => [m.user_id, m.name]));
 
   const ranked = [...members].sort((a, b) => b.total - a.total);
   const myRank = ranked.findIndex((m) => m.user_id === userId);
@@ -51,12 +65,21 @@ export default async function PointsPage() {
   const myTotal = me?.total ?? 0;
   const prog = nextLevelProgress(myTotal);
   const myBadges = earnedBadges(myInputs, myTotal);
-  const top = ranked.slice(0, 5).filter((m) => m.total > 0);
+  const top = ranked.slice(0, 7).filter((m) => m.total > 0);
   const medals = ["🥇", "🥈", "🥉"];
+
+  const canGrant = can.grantPoints(membership);
+  const grants = (grantsData ?? []) as PointGrant[];
 
   return (
     <>
       <h1 className="text-lg font-bold">⭐ ポイント</h1>
+      <ErrorBanner message={error} />
+      {ok === "1" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          ✓ 反映しました
+        </div>
+      )}
 
       {/* 自分の現在地 */}
       <Card className="space-y-3">
@@ -151,6 +174,97 @@ export default async function PointsPage() {
           ※ 全員の順位ではなく上位のみ表示しています(自分の順位は上のカードで確認できます)。
         </p>
       </Card>
+
+      {/* 手動ポイント付与(幹部・主将・管理者) */}
+      {canGrant && (
+        <Card className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-600">
+            🌟 特別功労ポイントを付与
+          </h2>
+          <p className="text-xs text-slate-400">
+            アプリの外での貢献(大会運営の手伝い・後輩指導など)を理由付きで評価します。
+            理由はチーム内に公開されます。
+          </p>
+          <form action={grantPoints} className="space-y-2">
+            <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <Label htmlFor="grant_user_id">対象</Label>
+                <Select name="user_id" id="grant_user_id" required className="text-sm">
+                  {[...members]
+                    .sort((a, b) => a.name.localeCompare(b.name, "ja"))
+                    .map((m) => (
+                      <option key={m.user_id} value={m.user_id}>
+                        {m.name}
+                      </option>
+                    ))}
+                </Select>
+              </div>
+              <div className="w-24 shrink-0">
+                <Label htmlFor="grant_points">ポイント</Label>
+                <Input
+                  type="number"
+                  name="points"
+                  id="grant_points"
+                  min={1}
+                  max={200}
+                  defaultValue={10}
+                  required
+                  className="text-sm tabular-nums"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="grant_reason">理由</Label>
+              <Textarea
+                name="reason"
+                id="grant_reason"
+                rows={2}
+                required
+                maxLength={300}
+                placeholder="例: 大会当日の運営を率先して手伝ってくれた"
+                className="text-sm"
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              ポイントを付与
+            </Button>
+          </form>
+        </Card>
+      )}
+
+      {/* 特別功労ポイントの履歴(誰でも閲覧可・透明性のため) */}
+      {grants.length > 0 && (
+        <Card className="space-y-2">
+          <h2 className="text-sm font-semibold text-slate-600">🌟 特別功労ポイントの履歴</h2>
+          <div className="space-y-2">
+            {grants.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-start justify-between gap-2 border-t border-slate-100 pt-2 text-xs first:border-t-0 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-slate-700">
+                    {nameOf.get(g.user_id) ?? "不明"}
+                  </span>
+                  <span className="text-slate-400"> +{g.points}pt</span>
+                  <p className="text-slate-500">{g.reason}</p>
+                  <p className="text-[10px] text-slate-400">
+                    {nameOf.get(g.granted_by) ?? "不明"}が付与・{g.created_at.slice(0, 10)}
+                  </p>
+                </div>
+                {(g.granted_by === userId || can.manageTeam(membership)) && (
+                  <form action={revokePointGrant} className="shrink-0">
+                    <input type="hidden" name="grant_id" value={g.id} />
+                    <button type="submit" className="text-rose-400 underline">
+                      取消
+                    </button>
+                  </form>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ポイントの貯め方 */}
       <Card className="space-y-2">

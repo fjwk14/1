@@ -25,4 +25,16 @@ describe("monthlyAttendanceSummary", () => {
   it("記録が無ければ空配列", () => {
     expect(monthlyAttendanceSummary([])).toEqual([]);
   });
+
+  it("早退も参加した扱いでpresentに数える", () => {
+    const rows = [
+      { status: "present" as const, practice_date: "2026-07-01" },
+      { status: "early_leave" as const, practice_date: "2026-07-08" },
+      { status: "absent" as const, practice_date: "2026-07-15" },
+    ];
+    const [july] = monthlyAttendanceSummary(rows);
+    expect(july.present).toBe(2);
+    expect(july.total).toBe(3);
+    expect(july.rate).toBe(67);
+  });
 });

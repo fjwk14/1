@@ -41,6 +41,7 @@ describe("computePoints", () => {
       inputs({
         conditionDates: ["2026-07-15"], // +2
         attendanceAnswers: 3, // +3
+        selfPracticeDates: ["2026-07-15", "2026-07-16"], // +6
         peerFeedbackSent: 2, // +10
         repliesReceived: 1, // +3
         clipsCreated: 1, // +4
@@ -48,9 +49,23 @@ describe("computePoints", () => {
         proposalsAdopted: 1, // +30
         qaAnswers: 2, // +6
         qaBestAnswers: 1, // +10
+        manualPoints: 15, // +15
       })
     );
-    expect(b.total).toBe(2 + 3 + 10 + 3 + 4 + 5 + 30 + 6 + 10);
+    expect(b.total).toBe(2 + 3 + 6 + 10 + 3 + 4 + 5 + 30 + 6 + 10 + 15);
+  });
+
+  it("自主練は記録した日ごとに+3(重複日は1回)", () => {
+    const b = computePoints(
+      inputs({ selfPracticeDates: ["2026-07-15", "2026-07-15", "2026-07-16"] })
+    );
+    expect(b.selfPractice).toBe(6); // 2日分
+  });
+
+  it("手動付与ポイントはそのまま合算される", () => {
+    const b = computePoints(inputs({ manualPoints: 42 }));
+    expect(b.manual).toBe(42);
+    expect(b.total).toBe(42);
   });
 });
 
@@ -93,5 +108,16 @@ describe("earnedBadges", () => {
     expect(keys).toContain("adopted");
     expect(keys).toContain("best_answer");
     expect(keys).toContain("rainbow");
+  });
+
+  it("自主練15日で「自主練の鬼」、手動付与で「特別功労」", () => {
+    const dates = Array.from({ length: 15 }, (_, i) => `2026-07-${String(i + 1).padStart(2, "0")}`);
+    const badges = earnedBadges(
+      inputs({ selfPracticeDates: dates, manualPoints: 10 }),
+      45 + 10
+    );
+    const keys = badges.map((b) => b.key);
+    expect(keys).toContain("self_starter");
+    expect(keys).toContain("recognized");
   });
 });

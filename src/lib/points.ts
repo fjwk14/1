@@ -14,6 +14,7 @@
 export const POINT_RULES = {
   conditionPerDay: 2, // コンディションを記録した日ごと
   attendanceAnswer: 1, // 出欠を回答するごと
+  selfPracticePerDay: 3, // 自主練(水中/ウエイト等)を記録した日ごと
   peerFeedbackSent: 5, // ピアFBを送るごと
   commentPerDay: 1, // コメント投稿(1日3件まで)
   commentDailyCap: 3,
@@ -28,6 +29,7 @@ export const POINT_RULES = {
 export const POINT_RULE_LABELS: { label: string; value: string }[] = [
   { label: "コンディションを記録", value: "+2 / 日" },
   { label: "出欠を回答", value: "+1 / 回" },
+  { label: "自主練を記録(水中/ウエイト等)", value: "+3 / 日" },
   { label: "ピアFBを送る", value: "+5 / 回" },
   { label: "コメント投稿", value: "+1 / 件(1日3件まで)" },
   { label: "返信・メンションをもらう", value: "+3 / 回" },
@@ -36,6 +38,7 @@ export const POINT_RULE_LABELS: { label: string; value: string }[] = [
   { label: "提案が採用される", value: "+30 / 件" },
   { label: "Q&Aで回答", value: "+3 / 回" },
   { label: "ベストアンサーに選ばれる", value: "+10 / 回" },
+  { label: "特別功労(幹部が理由付きで付与)", value: "都度1〜200" },
 ];
 
 // ---------- レベル(累積・下がらない) ----------
@@ -84,6 +87,7 @@ export function nextLevelProgress(total: number): {
 export interface PointInputs {
   conditionDates: string[]; // 記録した日("YYYY-MM-DD")の配列(重複可)
   attendanceAnswers: number; // 出欠を回答した数
+  selfPracticeDates: string[]; // 自主練を記録した日("YYYY-MM-DD")の配列(重複可)
   peerFeedbackSent: number;
   commentDates: string[]; // コメント投稿日("YYYY-MM-DD")の配列
   repliesReceived: number; // 返信・メンションをもらった数
@@ -92,11 +96,13 @@ export interface PointInputs {
   proposalsAdopted: number;
   qaAnswers: number;
   qaBestAnswers: number;
+  manualPoints: number; // 幹部が理由付きで手動付与したポイントの合計
 }
 
 export const emptyPointInputs = (): PointInputs => ({
   conditionDates: [],
   attendanceAnswers: 0,
+  selfPracticeDates: [],
   peerFeedbackSent: 0,
   commentDates: [],
   repliesReceived: 0,
@@ -105,11 +111,13 @@ export const emptyPointInputs = (): PointInputs => ({
   proposalsAdopted: 0,
   qaAnswers: 0,
   qaBestAnswers: 0,
+  manualPoints: 0,
 });
 
 export interface PointBreakdown {
   condition: number;
   attendance: number;
+  selfPractice: number;
   peerFeedback: number;
   comments: number;
   repliesReceived: number;
@@ -117,6 +125,7 @@ export interface PointBreakdown {
   tags: number;
   proposals: number;
   qa: number;
+  manual: number;
   total: number;
 }
 
@@ -138,6 +147,8 @@ function cappedCommentPoints(dates: string[]): number {
 export function computePoints(input: PointInputs): PointBreakdown {
   const condition = distinctCount(input.conditionDates) * POINT_RULES.conditionPerDay;
   const attendance = input.attendanceAnswers * POINT_RULES.attendanceAnswer;
+  const selfPractice =
+    distinctCount(input.selfPracticeDates) * POINT_RULES.selfPracticePerDay;
   const peerFeedback = input.peerFeedbackSent * POINT_RULES.peerFeedbackSent;
   const comments = cappedCommentPoints(input.commentDates);
   const repliesReceived = input.repliesReceived * POINT_RULES.replyReceived;
@@ -147,19 +158,23 @@ export function computePoints(input: PointInputs): PointBreakdown {
   const qa =
     input.qaAnswers * POINT_RULES.qaAnswer +
     input.qaBestAnswers * POINT_RULES.qaBestAnswer;
+  const manual = input.manualPoints;
   const total =
     condition +
     attendance +
+    selfPractice +
     peerFeedback +
     comments +
     repliesReceived +
     clips +
     tags +
     proposals +
-    qa;
+    qa +
+    manual;
   return {
     condition,
     attendance,
+    selfPractice,
     peerFeedback,
     comments,
     repliesReceived,
@@ -167,6 +182,7 @@ export function computePoints(input: PointInputs): PointBreakdown {
     tags,
     proposals,
     qa,
+    manual,
     total,
   };
 }
@@ -199,6 +215,12 @@ export function earnedBadges(input: PointInputs, total: number): Badge[] {
   }
   if (input.qaBestAnswers >= 1) {
     badges.push({ key: "best_answer", icon: "🎓", label: "頼れる先輩", desc: "ベストアンサーに選ばれた" });
+  }
+  if (distinctCount(input.selfPracticeDates) >= 15) {
+    badges.push({ key: "self_starter", icon: "💪", label: "自主練の鬼", desc: "自主練を15日記録" });
+  }
+  if (input.manualPoints > 0) {
+    badges.push({ key: "recognized", icon: "🌟", label: "特別功労", desc: "チームへの貢献が幹部に認められた" });
   }
   if (levelOf(total).key === "rainbow") {
     badges.push({ key: "rainbow", icon: "🌈", label: "虹到達", desc: "最高レベルに到達" });

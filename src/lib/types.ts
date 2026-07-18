@@ -142,7 +142,12 @@ export interface TagTemplate {
   is_active: boolean;
 }
 
-export type AttendanceStatus = "present" | "absent" | "late" | "excused";
+export type AttendanceStatus =
+  | "present"
+  | "absent"
+  | "late"
+  | "early_leave"
+  | "excused";
 export type PracticeStatus = "scheduled" | "done";
 
 export interface Practice {
@@ -231,6 +236,30 @@ export interface QaAnswer {
   question_id: string;
   created_by: string;
   body: string;
+  created_at: string;
+}
+
+// 手動ポイント付与(アプリ外の貢献などを幹部が理由付きで評価する)
+export interface PointGrant {
+  id: string;
+  team_id: string;
+  user_id: string;
+  granted_by: string;
+  points: number;
+  reason: string;
+  created_at: string;
+}
+
+export type SelfPracticeCategory = "swim" | "weight" | "other";
+
+// 自主練記録(チーム内公開・モチベーション用)
+export interface SelfPractice {
+  id: string;
+  team_id: string;
+  user_id: string;
+  practice_date: string; // "YYYY-MM-DD"
+  category: SelfPracticeCategory;
+  menu: string | null;
   created_at: string;
 }
 

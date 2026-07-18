@@ -147,11 +147,13 @@ export default async function MyPage({
     present: 0,
     absent: 0,
     late: 0,
+    early_leave: 0,
     excused: 0,
   };
   for (const a of attendances) attendanceCounts[a.status] += 1;
   const totalPractices = attendances.length;
-  const attendedCount = attendanceCounts.present + attendanceCounts.late;
+  const attendedCount =
+    attendanceCounts.present + attendanceCounts.late + attendanceCounts.early_leave;
   const attendanceRate =
     totalPractices > 0 ? Math.round((attendedCount / totalPractices) * 100) : null;
 
@@ -360,6 +362,7 @@ export default async function MyPage({
             <div className="flex gap-3 text-xs text-slate-500">
               <span>出席 {attendanceCounts.present}</span>
               <span>遅刻 {attendanceCounts.late}</span>
+              <span>早退 {attendanceCounts.early_leave}</span>
               <span>欠席 {attendanceCounts.absent}</span>
               <span>見学 {attendanceCounts.excused}</span>
             </div>

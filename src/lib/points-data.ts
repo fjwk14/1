@@ -25,6 +25,7 @@ export async function fetchTeamPointInputs(
   const [
     { data: conditions },
     { data: attendances },
+    { data: selfPractices },
     { data: feedbacks },
     { data: comments },
     { data: clips },
@@ -32,9 +33,11 @@ export async function fetchTeamPointInputs(
     { data: proposals },
     { data: answers },
     { data: questions },
+    { data: grants },
   ] = await Promise.all([
     supabase.from("condition_logs").select("user_id, log_date").eq("team_id", teamId),
     supabase.from("practice_attendances").select("user_id").eq("team_id", teamId),
+    supabase.from("self_practices").select("user_id, practice_date").eq("team_id", teamId),
     supabase.from("peer_feedbacks").select("from_user_id").eq("team_id", teamId),
     supabase
       .from("clip_comments")
@@ -45,6 +48,7 @@ export async function fetchTeamPointInputs(
     supabase.from("proposals").select("created_by, status").eq("team_id", teamId),
     supabase.from("qa_answers").select("id, created_by").eq("team_id", teamId),
     supabase.from("qa_questions").select("resolved_answer_id").eq("team_id", teamId),
+    supabase.from("point_grants").select("user_id, points").eq("team_id", teamId),
   ]);
 
   const map = new Map<string, PointInputs>();
@@ -62,6 +66,9 @@ export async function fetchTeamPointInputs(
   }
   for (const r of (attendances ?? []) as { user_id: string }[]) {
     ensure(r.user_id).attendanceAnswers += 1;
+  }
+  for (const r of (selfPractices ?? []) as { user_id: string; practice_date: string }[]) {
+    ensure(r.user_id).selfPracticeDates.push(r.practice_date);
   }
   for (const r of (feedbacks ?? []) as { from_user_id: string }[]) {
     ensure(r.from_user_id).peerFeedbackSent += 1;
@@ -97,6 +104,9 @@ export async function fetchTeamPointInputs(
     if (!q.resolved_answer_id) continue;
     const author = answerAuthor.get(q.resolved_answer_id);
     if (author) ensure(author).qaBestAnswers += 1;
+  }
+  for (const r of (grants ?? []) as { user_id: string; points: number }[]) {
+    ensure(r.user_id).manualPoints += r.points;
   }
 
   return map;

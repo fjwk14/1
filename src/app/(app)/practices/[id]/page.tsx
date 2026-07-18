@@ -38,7 +38,7 @@ import {
   deletePractice,
 } from "../actions";
 
-const STATUS_ORDER = ["present", "absent", "late", "excused"] as const;
+const STATUS_ORDER = ["present", "absent", "late", "early_leave", "excused"] as const;
 
 export default async function PracticeDetailPage({
   params,
@@ -139,7 +139,7 @@ export default async function PracticeDetailPage({
   const participantIds = members
     .filter((m) => {
       const st = statusByUser.get(m.user_id);
-      return st === "present" || st === "late";
+      return st === "present" || st === "late" || st === "early_leave";
     })
     .map((m) => m.user_id);
   const myFbTarget =
@@ -300,7 +300,7 @@ export default async function PracticeDetailPage({
       {/* 自分の出欠を申告(全員が使える。予定でも実施済みでも回答・修正できる) */}
       <Card className="space-y-2">
         <h2 className="text-sm font-semibold text-slate-600">あなたの出欠</h2>
-        <form action={submitMyAttendance} className="grid grid-cols-4 gap-2">
+        <form action={submitMyAttendance} className="grid grid-cols-5 gap-1.5">
           <input type="hidden" name="practice_id" value={practice.id} />
           {STATUS_ORDER.map((st) => (
             <Button
@@ -309,7 +309,7 @@ export default async function PracticeDetailPage({
               name="status"
               value={st}
               variant={statusByUser.get(userId) === st ? "primary" : "secondary"}
-              className="px-1 text-xs"
+              className="min-h-11 px-0.5 text-[11px]"
             >
               {ATTENDANCE_LABELS[st]}
             </Button>
@@ -415,8 +415,8 @@ export default async function PracticeDetailPage({
         </Card>
       )}
 
-      {/* 出欠サマリ */}
-      <div className={`grid gap-2 ${unansweredCount > 0 ? "grid-cols-5" : "grid-cols-4"}`}>
+      {/* 出欠サマリ(項目が増えたため3列で折り返す) */}
+      <div className="grid grid-cols-3 gap-2">
         {STATUS_ORDER.map((st) => (
           <Card key={st} className="p-2 text-center">
             <div className="text-xl font-bold tabular-nums">{counts[st]}</div>

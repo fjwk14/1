@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { Button, Card, ErrorBanner, Input, Label, Textarea } from "@/components/ui";
+import { Button, Card, ErrorBanner, Input, Label, Select, Textarea } from "@/components/ui";
 import { requireMembership } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { can } from "@/lib/permissions";
-import { ATTENDANCE_LABELS } from "@/lib/constants";
-import type { AttendanceStatus, Practice, PracticeAttendance } from "@/lib/types";
-import { createPractice } from "./actions";
+import { ATTENDANCE_LABELS, SELF_PRACTICE_CATEGORY_LABELS } from "@/lib/constants";
+import type {
+  AttendanceStatus,
+  Practice,
+  PracticeAttendance,
+  Profile,
+  SelfPractice,
+} from "@/lib/types";
+import { createPractice, deleteSelfPractice, logSelfPractice } from "./actions";
 
 // 練習記録の一覧 + 新規記録。マネージャー以上が「当日その場で記録」または
 // 「先に予定として作成」でき、後者は部員が各自出欠を事前申告する。
@@ -18,19 +24,26 @@ export default async function PracticesPage({
   const { team, userId, membership } = await requireMembership();
   const supabase = await createClient();
 
-  const [{ data: practicesData }, { data: attData }] = await Promise.all([
-    supabase
-      .from("practices")
-      .select("id, practice_date, start_time, end_time, location, menu, status")
-      .eq("team_id", team.id)
-      .order("practice_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("practice_attendances")
-      .select("practice_id, user_id, status")
-      .eq("team_id", team.id),
-  ]);
+  const [{ data: practicesData }, { data: attData }, { data: selfData }] =
+    await Promise.all([
+      supabase
+        .from("practices")
+        .select("id, practice_date, start_time, end_time, location, menu, status")
+        .eq("team_id", team.id)
+        .order("practice_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("practice_attendances")
+        .select("practice_id, user_id, status")
+        .eq("team_id", team.id),
+      supabase
+        .from("self_practices")
+        .select("id, user_id, practice_date, category, menu, created_at, users(name)")
+        .eq("team_id", team.id)
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]);
 
   const practices = (practicesData ?? []) as Pick<
     Practice,
@@ -46,7 +59,9 @@ export default async function PracticesPage({
   const myStatusByPractice = new Map<string, AttendanceStatus>();
   for (const a of attendances) {
     const s = summaryByPractice.get(a.practice_id) ?? { present: 0, absent: 0 };
-    if (a.status === "present" || a.status === "late") s.present += 1;
+    if (a.status === "present" || a.status === "late" || a.status === "early_leave") {
+      s.present += 1;
+    }
     if (a.status === "absent") s.absent += 1;
     summaryByPractice.set(a.practice_id, s);
     if (a.user_id === userId) myStatusByPractice.set(a.practice_id, a.status);
@@ -54,6 +69,13 @@ export default async function PracticesPage({
 
   const canRecord = can.recordPractice(membership);
   const today = new Date().toISOString().slice(0, 10);
+
+  const selfPractices = (
+    (selfData ?? []) as unknown as (Pick<
+      SelfPractice,
+      "id" | "user_id" | "practice_date" | "category" | "menu" | "created_at"
+    > & { users: Pick<Profile, "name"> | null })[]
+  ).map((s) => ({ ...s, name: s.users?.name ?? "不明" }));
 
   const scheduled = practices
     .filter((p) => p.status === "scheduled")
@@ -71,6 +93,84 @@ export default async function PracticesPage({
         )}
       </div>
       <ErrorBanner message={error} />
+
+      {/* 自主練の記録(誰でも使える。チーム内公開でモチベーションにする) */}
+      <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-600">💪 自主練を記録</h2>
+        <p className="text-xs text-slate-400">
+          水中練習・ウエイトなど、個人でやった練習を記録できます。記録するとポイントが貯まります。
+        </p>
+        <form action={logSelfPractice} className="flex flex-wrap gap-2">
+          <div className="w-36 shrink-0">
+            <Label htmlFor="self_practice_date" className="sr-only">
+              日付
+            </Label>
+            <Input
+              type="date"
+              name="practice_date"
+              id="self_practice_date"
+              defaultValue={today}
+              className="appearance-none text-sm"
+            />
+          </div>
+          <div className="w-28 shrink-0">
+            <Label htmlFor="self_practice_category" className="sr-only">
+              種別
+            </Label>
+            <Select name="category" id="self_practice_category" defaultValue="swim" className="text-sm">
+              {Object.entries(SELF_PRACTICE_CATEGORY_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="min-w-0 flex-1">
+            <Label htmlFor="self_practice_menu" className="sr-only">
+              内容(任意)
+            </Label>
+            <Input
+              type="text"
+              name="menu"
+              id="self_practice_menu"
+              placeholder="内容(任意・例: スクワット3セット)"
+              className="text-sm"
+            />
+          </div>
+          <Button type="submit" className="w-full">
+            記録する
+          </Button>
+        </form>
+        {selfPractices.length > 0 && (
+          <div className="space-y-1.5 border-t border-slate-100 pt-2">
+            <p className="text-xs font-semibold text-slate-500">
+              みんなの自主練(最近{selfPractices.length}件)
+            </p>
+            <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+              {selfPractices.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0 truncate">
+                    <span className="mr-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                      {SELF_PRACTICE_CATEGORY_LABELS[s.category]}
+                    </span>
+                    <span className="font-semibold text-slate-700">{s.name}</span>
+                    <span className="ml-1 text-slate-400">{s.practice_date.slice(5)}</span>
+                    {s.menu && <span className="ml-1 text-slate-500">{s.menu}</span>}
+                  </span>
+                  {s.user_id === userId && (
+                    <form action={deleteSelfPractice} className="shrink-0">
+                      <input type="hidden" name="self_practice_id" value={s.id} />
+                      <button type="submit" className="text-rose-400 underline">
+                        削除
+                      </button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
 
       {canRecord && (
         <Card className="space-y-3">

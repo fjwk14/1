@@ -65,6 +65,9 @@ export const can = {
   manageTeam: (r: RoleInput) => anyRole(r, ["admin"]),
   manageMembers: (r: RoleInput) => anyRole(r, ["admin"]),
   manageTagTemplates: (r: RoleInput) => anyRole(r, ["admin"]),
+  // アプリ外の貢献などを理由付きで手動評価する。提案の状態変更と同じ幹部層
+  // (RLS側も同じ制限)
+  grantPoints: (r: RoleInput) => anyRole(r, LEADER_ROLES),
 } as const;
 
 // マネージャー役職(primary/secondary問わず)を持つメンバーは競技者ではない。

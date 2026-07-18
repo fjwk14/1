@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireMembership } from "@/lib/session";
 import { can } from "@/lib/permissions";
 
-const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"] as const;
+const ATTENDANCE_STATUSES = ["present", "absent", "late", "early_leave", "excused"] as const;
+const SELF_PRACTICE_CATEGORIES = ["swim", "weight", "other"] as const;
 
 function backTo(path: string, error?: string): never {
   redirect(error ? `${path}?error=${encodeURIComponent(error)}` : path);
@@ -271,6 +272,52 @@ export async function deletePractice(formData: FormData) {
       "削除できませんでした(権限がない可能性があります)"
     );
   }
+  revalidatePath("/practices");
+  redirect("/practices");
+}
+
+// 自主練(水中/ウエイト/その他)を記録する。誰でも自分の分だけ書ける。
+// チーム内公開で見せ合うことでモチベーションにする。ポイント加点対象。
+export async function logSelfPractice(formData: FormData) {
+  const { team, userId } = await requireMembership();
+
+  const rawDate = String(formData.get("practice_date") ?? "").trim();
+  const practiceDate = dateRe.test(rawDate)
+    ? rawDate
+    : new Date().toISOString().slice(0, 10);
+  const category = z.enum(SELF_PRACTICE_CATEGORIES).safeParse(formData.get("category"));
+  if (!category.success) backTo("/practices", "自主練の種別を選んでください");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("self_practices").insert({
+    team_id: team.id,
+    user_id: userId,
+    practice_date: practiceDate,
+    category: category.data,
+    menu: cleanText(formData.get("menu"), 500),
+  });
+  if (error) backTo("/practices", `自主練の記録に失敗しました: ${error.message}`);
+
+  revalidatePath("/practices");
+  backTo("/practices?ok=1");
+}
+
+// 自主練の記録を削除する(本人のみ・入力ミスの訂正用)
+export async function deleteSelfPractice(formData: FormData) {
+  await requireMembership();
+  const id = z.string().uuid().safeParse(formData.get("self_practice_id"));
+  if (!id.success) backTo("/practices", "不正なリクエストです");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("self_practices")
+    .delete()
+    .eq("id", id.data)
+    .select("id");
+  if (error || !data?.length) {
+    backTo("/practices", "削除できませんでした");
+  }
+
   revalidatePath("/practices");
   redirect("/practices");
 }
