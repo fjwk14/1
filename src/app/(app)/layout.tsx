@@ -76,10 +76,21 @@ export default async function AppLayout({
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <Link href="/dashboard" className="font-bold text-brand-900">
-          {team.name}
-        </Link>
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+        {/* 関学カラー(青×金)のアクセントライン。チームロゴのシールドを踏襲した控えめな装飾 */}
+        <div className="h-1 bg-gradient-to-r from-brand-600 via-brand-500 to-amber-400" />
+        <div className="flex items-center justify-between px-4 py-3">
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-2 font-bold text-brand-900">
+            {team.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={team.logo_url}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+              />
+            )}
+            <span className="truncate">{team.name}</span>
+          </Link>
         <div className="flex items-center gap-2 text-sm">
           <Link href="/me" className="flex items-center gap-1.5 text-slate-500 hover:text-brand-600">
             <Suspense
@@ -100,6 +111,7 @@ export default async function AppLayout({
               ログアウト
             </button>
           </form>
+        </div>
         </div>
       </header>
 

@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* アクセントカラー(brand-*)をCSS変数化。
+   値は"R G B"(スペース区切り)で持ち、Tailwind側は
+   rgb(var(--brand-500) / <alpha-value>) として参照する。
+   将来チームごとのテーマ色に差し替えやすくするための土台
+   (今回はデフォルト値のみで見た目は変わらない)。 */
+:root {
+  --brand-50: 239 246 255;
+  --brand-100: 219 234 254;
+  --brand-500: 59 130 246;
+  --brand-600: 37 99 235;
+  --brand-700: 29 78 216;
+  --brand-900: 30 58 95;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }

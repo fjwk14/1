@@ -15,7 +15,7 @@ import { can, isManager, ROLE_LABELS } from "@/lib/permissions";
 import type { Membership, Profile, Role } from "@/lib/types";
 import { FIELD_POSITIONS } from "@/lib/constants";
 import { enrollmentYearOptions, gradeLabel } from "@/lib/grade";
-import { addMember, bulkUpdateMembers, removeMember } from "./actions";
+import { addMember, bulkUpdateMembers, removeMember, updateTeamBranding } from "./actions";
 import InviteCodeCard from "./invite-code-card";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -69,6 +69,36 @@ export default async function AdminPage({
       )}
 
       <InviteCodeCard code={team.invite_code} />
+
+      {/* チームロゴ(ヘッダーに表示)。他大学・他チーム展開を見据え、
+          色ではなく画像URLのみを設定する軽量な項目にしている */}
+      <Card className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-600">チームロゴ</h2>
+        <p className="text-xs text-slate-400">
+          画像を公開URLでホストし、そのURLを貼り付けてください。ヘッダーにチーム名と並んで表示されます。
+          空欄で更新するとロゴを消せます。
+        </p>
+        <form action={updateTeamBranding} className="flex items-center gap-2">
+          {team.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={team.logo_url}
+              alt=""
+              className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+            />
+          )}
+          <Input
+            name="logo_url"
+            type="url"
+            placeholder="https://example.com/logo.png"
+            defaultValue={team.logo_url ?? ""}
+            className="flex-1 text-sm"
+          />
+          <Button type="submit" className="shrink-0">
+            保存
+          </Button>
+        </form>
+      </Card>
 
       <Card className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-600">

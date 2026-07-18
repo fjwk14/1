@@ -201,14 +201,14 @@ export default async function DashboardPage() {
         </LinkButton>
       </div>
 
-      {/* シャチの一言(マスコット) */}
-      <Card className="flex items-center gap-3 border-brand-200 bg-brand-50/50">
+      {/* シャチの一言(マスコット)。関学カラーの金アクセントで少し華やかに */}
+      <Card className="flex items-center gap-3 border-brand-200 bg-brand-50/50 border-l-4 border-l-amber-400">
         {/* アプリアイコンのシャチを流用 */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/icon.png"
           alt="シャチ"
-          className="h-12 w-12 shrink-0 rounded-full bg-white object-contain ring-2 ring-brand-200"
+          className="h-12 w-12 shrink-0 rounded-full bg-white object-contain ring-2 ring-amber-300"
         />
         <p className="min-w-0 text-sm text-slate-700">{shachi}</p>
       </Card>

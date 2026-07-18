@@ -153,7 +153,12 @@ export default async function PointsPage({
         ) : (
           <ol className="space-y-1.5">
             {top.map((m, i) => (
-              <li key={m.user_id} className="flex items-center gap-2 text-sm">
+              <li
+                key={m.user_id}
+                className={`flex items-center gap-2 rounded-lg text-sm ${
+                  i === 0 ? "bg-amber-50 px-2 py-1 ring-1 ring-amber-200" : ""
+                }`}
+              >
                 <span className="w-6 shrink-0 text-center">{medals[i] ?? `${i + 1}.`}</span>
                 <PointAvatar name={m.name} total={m.total} size="sm" />
                 <span

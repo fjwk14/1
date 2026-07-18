@@ -47,6 +47,31 @@ export async function addMember(formData: FormData) {
   backTo("/admin");
 }
 
+// チームロゴ(teams.logo_url)の設定。他大学・他チームへの展開を見据え、
+// 色はいじらずロゴ画像URLのみを設定できるようにする(0001から未使用だった列の活用)。
+export async function updateTeamBranding(formData: FormData) {
+  const { team } = await requireAdmin();
+
+  const raw = String(formData.get("logo_url") ?? "").trim();
+  let logoUrl: string | null = null;
+  if (raw !== "") {
+    const parsed = z.string().url().max(2000).safeParse(raw);
+    if (!parsed.success) backTo("/admin", "ロゴ画像のURLが正しくありません");
+    logoUrl = parsed.data;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("teams")
+    .update({ logo_url: logoUrl })
+    .eq("id", team.id);
+  if (error) backTo("/admin", "ロゴの更新に失敗しました");
+
+  revalidatePath("/admin");
+  revalidatePath("/dashboard");
+  backTo("/admin?ok=1");
+}
+
 export async function regenerateInviteCode() {
   const { team } = await requireAdmin();
   const supabase = await createClient();
